@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     s03_doublefree_san
-relocations:     []
-...

@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     u05_nullderef_san
-relocations:     []
-...

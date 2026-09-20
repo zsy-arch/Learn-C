@@ -82,9 +82,9 @@
     测试 fact_acc(1000000, 1) —— 100 万层递归...
 AddressSanitizer:DEADLYSIGNAL
 =================================================================
-==17459==ERROR: AddressSanitizer: stack-overflow on address 0x00016b0a3ff4 (pc 0x000104563de4 bp 0x00016b0a4000 sp 0x00016b0a3fe0 T0)
-    #0 0x000104563de4 in fact_acc demo.c:214
+==23861==ERROR: AddressSanitizer: stack-overflow on address 0x00016cdbbff4 (pc 0x00010284bde4 bp 0x00016cdbc000 sp 0x00016cdbbfe0 T0)
+    #0 0x00010284bde4 in fact_acc demo.c:214
 
 SUMMARY: AddressSanitizer: stack-overflow demo.c:214 in fact_acc
-==17459==ABORTING
+==23861==ABORTING
 ### exit code: 134

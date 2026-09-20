@@ -1,14 +1,14 @@
 leaks Report Version: 4.0, multi-line stacks
-Process 17206: 190 nodes malloced for 31 KB
-Process 17206: 1 leak for 32 total leaked bytes.
+Process 23382: 190 nodes malloced for 31 KB
+Process 23382: 1 leak for 32 total leaked bytes.
 
 STACK OF 1 INSTANCE OF 'ROOT LEAK: <malloc in push>':
 3   dyld                                  0x18102be80 start + 6688
-2   leak_demo_probe                       0x1043b0518 main + 184  leak_demo.c:95
-1   leak_demo_probe                       0x1043b0814 push + 28  leak_demo.c:28
+2   leak_demo_probe                       0x102460518 main + 184  leak_demo.c:95
+1   leak_demo_probe                       0x102460814 push + 28  leak_demo.c:28
 0   libsystem_malloc.dylib                0x181228630 _malloc_zone_malloc_instrumented_or_legacy + 152 
 ====
-    1 (32 bytes) ROOT LEAK: <malloc in push 0x762ec2c040> [32]
+    1 (32 bytes) ROOT LEAK: <malloc in push 0x7c52c0c040> [32]
 
 
 

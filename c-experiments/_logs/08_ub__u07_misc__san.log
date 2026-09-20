@@ -1,0 +1,34 @@
+### dir     : 08_ub
+### source  : u07_misc.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer u07_misc.c -o u07_misc_san
+### --- compile ---
+### --- run: ./u07_misc_san shift ---
+u07_misc.c:17:19: runtime error: shift exponent 32 is too large for 32-bit type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u07_misc.c:17:19 
+u07_misc.c:24:22: runtime error: left shift of negative value -1
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u07_misc.c:24:22 
+模式: shift  (可选: shift | divzero | seq)
+== 移位越界 ==
+  1 << 32 是 UB（移位量必须 < 类型位宽）
+  本次得到 1
+  -1 << 1 在 C17 里也是 UB（左移有符号负数）
+  本次得到 -2
+  正确做法：需要位操作时一律用 unsigned 类型
+
+== 一份常见 UB 清单 ==
+   1. 有符号整数溢出
+   2. 数组/指针越界访问
+   3. 解引用空指针 / 野指针 / 悬垂指针
+   4. 读取未初始化的对象
+   5. free 两次 / free 非堆指针
+   6. 修改字符串字面量或 const 对象
+   7. 移位量 >= 位宽，或左移负数
+   8. 整数除以零 / 取模零
+   9. 同一表达式内无序地多次修改同一对象
+  10. 违反严格别名规则
+  11. memcpy 源和目的重叠（应该用 memmove）
+  12. 非 void 函数走到结尾却没 return
+  13. printf 格式串与实参类型不匹配
+  14. 未对齐的指针解引用
+### exit code: 0

@@ -1,0 +1,48 @@
+### dir     : 05_pointer
+### source  : p09_arith.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p09_arith.c -o p09_arith
+### --- compile ---
+### --- run: ./p09_arith  ---
+== 1. 指针 + 整数 ==
+  p=0x16db2de00  *p=10  (p - begin = 0)
+  p=0x16db2de04  *p=20  (p - begin = 1)
+  p=0x16db2de08  *p=30  (p - begin = 2)
+  p=0x16db2de0c  *p=40  (p - begin = 3)
+  p=0x16db2de10  *p=50  (p - begin = 4)
+
+== 2. 指针 - 指针 = 元素个数（类型是 ptrdiff_t）==
+  end - begin = 5  个元素
+  字节差 = 20  (= 5 * sizeof(int))
+  打印 ptrdiff_t 用 %td
+
+== 3. one-past-the-end 的规则 ==
+  arr+5 = 0x16db2de14  <-- 合法：可以计算、可以比较
+  *(arr+5)     <-- 非法：解引用是 undefined behavior
+  arr+6        <-- 非法：连「算出这个地址」本身都是 UB
+  这就是所有 STL/迭代器风格循环写 p != end 的依据
+
+== 4. 指针比较 ==
+  begin <  end  ? true
+  只有指向同一个数组（或同一对象）的指针之间比较才有定义
+
+== 5. 逆序遍历的正确写法 ==
+  50   40   30   20   10 
+
+== 6. 用 char* 做字节级步进 ==
+  sizeof(struct S) = 24
+  原始字节: 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 78 00 00 00 00 00 00 00 
+  char* 加减 1 就是「一个字节」，这是唯一能安全遍历对象表示的指针类型
+
+== 7. 整数与指针互转（可移植性警告）==
+  pv        = 0x16db2dd9c
+  uintptr_t = 0x16DB2DD9C
+  转回来 *back = 7  (uintptr_t 往返是标准保证的)
+  但 (int)pv 在 64 位平台会截断，绝对不要这么写
+
+== 8. 常见越界写法对照 ==
+  for (i = 0; i <= n; i++)  arr[i]   <-- 错，多访问一个
+  for (i = 0; i <  n; i++)  arr[i]   <-- 对
+  p = arr + n; *p                    <-- 错，解引用尾后指针
+  越界的现场请看 08_ub/u02_oob.c（ASan 会直接抓住）
+### exit code: 0

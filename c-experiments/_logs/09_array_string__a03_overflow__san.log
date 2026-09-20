@@ -1,0 +1,57 @@
+### dir     : 09_array_string
+### source  : a03_overflow.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer a03_overflow.c -o a03_overflow_san
+### --- compile ---
+### --- run: ./a03_overflow_san unsafe 0123456789ABCDEF ---
+=================================================================
+==91405==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x00016d3fdbec at pc 0x000103102aa4 bp 0x00016d3fdbb0 sp 0x00016d3fd360
+WRITE of size 17 at 0x00016d3fdbec thread T0
+    #0 0x000103102aa0 in strcpy+0x458 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x3aaa0)
+    #1 0x000102a00d54 in unsafe_copy a03_overflow.c:14
+    #2 0x000102a00bbc in main a03_overflow.c:41
+    #3 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+Address 0x00016d3fdbec is located in stack of thread T0 at offset 44 in frame
+    #0 0x000102a00c08 in unsafe_copy a03_overflow.c:11
+
+  This frame has 1 object(s):
+    [32, 44) 'f' (line 12) <== Memory access at offset 44 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow a03_overflow.c:14 in unsafe_copy
+Shadow bytes around the buggy address:
+  0x00016d3fd900: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fd980: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fda00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fda80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fdb00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x00016d3fdb80: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 00[04]f3 f3
+  0x00016d3fdc00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fdc80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fdd00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fdd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d3fde00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==91405==ABORTING
+模式: unsafe   源串: "0123456789ABCDEF" (16 字符)  目标 buf 只有 8 字节
+== 不安全版本 strcpy ==
+### exit code: 134

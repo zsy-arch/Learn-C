@@ -1,0 +1,23 @@
+### dir     : 02_branch
+### source  : pitfall.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g pitfall.c -o pitfall
+### --- compile ---
+pitfall.c:11:5: warning: add explicit braces to avoid dangling else [-Wdangling-else]
+   11 |     else                                   /* 看起来配 if(a>0)，实际配 if(b>0) */
+      |     ^
+1 warning generated.
+### --- run: ./pitfall  ---
+== 悬空 else ==
+ dangling_else(1, -1):
+  <-- 这行真正的含义是: a>0 但 b<=0
+ dangling_else(-1, 1): (什么都不打印)
+
+== 意外 fallthrough ==
+ accidental_fallthrough(1):
+  case 1 执行
+  case 2 也被执行了（fallthrough）
+
+== 把 == 写成 = ==
+  if (x = 5) 恒为真，而且把 x 改成了 5
+### exit code: 0

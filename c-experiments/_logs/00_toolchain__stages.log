@@ -1,0 +1,26 @@
+### hello.i 行数:      579
+### nm hello.o
+0000000000000000 T _main
+                 U _printf
+                 U _puts
+0000000000000068 s l_.str
+0000000000000074 s l_.str.1
+0000000000000084 s l_.str.2
+0000000000000000 t ltmp0
+0000000000000068 s ltmp1
+00000000000000a0 s ltmp2
+### ./hello_full
+Hello, C17!
+SQUARE(3) = 9
+__STDC_VERSION__ = 201710L
+### ./app
+Hello, Alice! (第 1 次问候)
+Hello, Bob! (第 2 次问候)
+g_greet_count = 2
+### 反例: link_error（应当链接失败）
+Undefined symbols for architecture arm64:
+  "_missing_function", referenced from:
+      _main in link_error-9f770e.o
+ld: symbol(s) not found for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+### link exit: 1

@@ -1,0 +1,17 @@
+### dir     : 08_ub
+### source  : u06_literal_write.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g u06_literal_write.c -o u06_literal_write
+### --- compile ---
+### --- run: ./u06_literal_write safe ---
+模式: safe  (可选: safe | crash)
+char writable[] = "hello"; writable[0]='H' -> "Hello"  OK
+  writable 在栈上: 0x16fa89de0
+char *literal = "hello";  literal 在只读段: 0x100374625
+
+要点:
+  1) 字符串字面量的类型是 char[N]，但它是「不可修改的」
+  2) 所以永远写 const char *s = "...";，让编译器帮你拦住
+  3) 需要可写内容就用 char buf[] = "..."; 或 strdup/malloc
+  4) 不要为了消除警告而强转掉 const —— 那是在关掉安全带
+### exit code: 0

@@ -1,0 +1,32 @@
+### dir     : 06_struct
+### source  : s05_flexarray.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror s05_flexarray.c -o s05_flexarray
+### --- compile ---
+### --- run: ./s05_flexarray  ---
+== 1. 柔性数组成员不计入 sizeof ==
+  sizeof(Packet)    = 16  (len + tag + padding，data[] 占 0)
+  offsetof(Packet, data) = 12
+  sizeof(PacketPtr) = 24  (len + tag + 一个指针)
+
+== 2. 一次分配，头和数据连续 ==
+  p        = 0x1049056d0
+  p->data  = 0x1049056dc   <-- 紧跟在头部后面，偏移 12
+  tag=7 len=20 data="hello flexible array"
+  实际分配了 sizeof(Packet)+len+1 = 37 字节
+
+== 3. 对照：指针成员版本 ==
+  q        = 0x1049056d0
+  q->data  = 0x1049056f0   <-- 在堆上另一处，离得很远
+  两块内存相距 32 字节
+
+== 4. 什么时候用柔性数组 ==
+  适合: 创建后长度不再变化的「头部+变长负载」，如网络包、消息、字符串对象
+  不适合: 需要 realloc 改长度且有别处持有指针的场景（realloc 会搬家）
+  注意: 含柔性数组的结构体不能直接放进数组，也不能按值赋值复制数据部分
+
+== 5. 历史写法对比 ==
+  char data[1];   // C89 的 struct hack，越界访问，技术上是 UB
+  char data[0];   // GCC 扩展，非标准
+  char data[];    // C99 标准柔性数组，用这个
+### exit code: 0

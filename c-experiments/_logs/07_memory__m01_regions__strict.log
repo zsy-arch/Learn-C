@@ -1,0 +1,43 @@
+### dir     : 07_memory
+### source  : m01_regions.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror m01_regions.c -o m01_regions
+### --- compile ---
+### --- run: ./m01_regions  ---
+== 1. 各个区的典型地址（地址从小到大排列）==
+  函数代码 main          0x100c44598   __TEXT  代码段(可执行，只读)
+  函数代码 dummy         0x100c44854   __TEXT
+  字符串字面量         0x100c44970   __TEXT/__cstring 只读
+  const 全局 g_const       0x100c4496c   __DATA_CONST 只读
+  全局 g_initialized       0x100c4c000   __DATA  已初始化
+  static g_static            0x100c4c004   __DATA
+  全局 g_uninitialized     0x100c4c008   __DATA/__bss 运行时清零
+  堆 malloc(16)             0x10142d6d0   heap    向高地址增长
+  堆 malloc(1MB)            0x7ce1000000   heap    大块可能单独 mmap
+  栈 局部变量           0x16f1b9e18   stack   向低地址增长
+
+== 2. 栈的方向 ==
+  递归 0 层时栈顶约 0x16f1b9cc8
+  递归 20 层时栈顶约 0x16f1b8288，共下探约 7031 字节
+
+== 3. 栈 vs 堆 的对比 ==
+  ┌────────┬──────────────────┬──────────────────────┐
+  │        │ 栈 (stack)       │ 堆 (heap)            │
+  ├────────┼──────────────────┼──────────────────────┤
+  │ 分配   │ 移动栈指针，极快  │ malloc 要找空闲块，慢 │
+  │ 释放   │ 函数返回自动回收  │ 必须手动 free        │
+  │ 大小   │ 有限(通常 8MB)   │ 受物理内存/地址空间限 │
+  │ 生命期 │ 到函数返回为止    │ 到你 free 为止        │
+  │ 越界   │ 破坏别的栈帧      │ 破坏堆元数据         │
+  └────────┴──────────────────┴──────────────────────┘
+
+== 4. 栈大小是有限的 ==
+  可以用 ulimit -s 查看（macOS 默认主线程 8192 KB）
+  int big[4*1024*1024]; 作为局部变量会直接栈溢出崩溃
+  大数组请用 malloc 放到堆上，或者声明成 static
+
+== 5. 生命周期（lifetime）三种 ==
+  自动存储期 automatic : 局部变量，进入块时创建，离开块销毁
+  静态存储期 static    : 全局/static 变量，程序全程存在
+  分配存储期 allocated : malloc 得到的，从 malloc 到 free
+### exit code: 0

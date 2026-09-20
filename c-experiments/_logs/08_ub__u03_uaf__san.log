@@ -1,0 +1,61 @@
+### dir     : 08_ub
+### source  : u03_uaf.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer u03_uaf.c -o u03_uaf_san
+### --- compile ---
+### --- run: ./u03_uaf_san read ---
+=================================================================
+==91248==ERROR: AddressSanitizer: heap-use-after-free on address 0x603000001000 at pc 0x000101152e80 bp 0x00016f3c9d30 sp 0x00016f3c94c0
+READ of size 2 at 0x603000001000 thread T0
+    #0 0x000101152e7c in printf_common(void*, char const*, char*)+0x804 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x1ee7c)
+    #1 0x000101153a34 in printf+0x64 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x1fa34)
+    #2 0x000100a34a5c in main u03_uaf.c:20
+    #3 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+0x603000001000 is located 0 bytes inside of 32-byte region [0x603000001000,0x603000001020)
+freed by thread T0 here:
+    #0 0x000101175308 in free+0x7c (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x41308)
+    #1 0x000100a34a2c in main u03_uaf.c:16
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+previously allocated by thread T0 here:
+    #0 0x000101175214 in malloc+0x78 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x41214)
+    #1 0x000100a349d4 in main u03_uaf.c:11
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+SUMMARY: AddressSanitizer: heap-use-after-free u03_uaf.c:20 in main
+Shadow bytes around the buggy address:
+  0x603000000d80: fa fa 00 00 00 00 fa fa 00 00 00 00 fa fa 00 00
+  0x603000000e00: 00 00 fa fa 00 00 00 00 fa fa 00 00 00 00 fa fa
+  0x603000000e80: 00 00 00 00 fa fa 00 00 00 00 fa fa 00 00 00 00
+  0x603000000f00: fa fa 00 00 00 00 fa fa 00 00 00 00 fa fa 00 00
+  0x603000000f80: 00 fa fa fa 00 00 00 00 fa fa 00 00 00 00 fa fa
+=>0x603000001000:[fd]fd fd fd fa fa fa fa fa fa fa fa fa fa fa fa
+  0x603000001080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x603000001100: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x603000001180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x603000001200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x603000001280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==91248==ABORTING
+模式: read  (可选: read | write | doublefree | safe)
+free 前: p=0x603000001000 内容="important data"
+### exit code: 134

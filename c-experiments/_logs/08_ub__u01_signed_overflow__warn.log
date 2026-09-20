@@ -1,0 +1,14 @@
+### dir     : 08_ub
+### source  : u01_signed_overflow.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g u01_signed_overflow.c -o u01_signed_overflow
+### --- compile ---
+### --- run: ./u01_signed_overflow  ---
+INT_MAX = 2147483647
+即将计算 a + 1，其中 a = 2147483647
+a + 1 = -2147483648   <-- 没有任何保证，UBSan 会在上一行报错
+
+INT_MIN = -2147483648
+-INT_MIN = -2147483648   <-- 同样是 UB
+INT_MIN / -1 = -2147483648
+### exit code: 0

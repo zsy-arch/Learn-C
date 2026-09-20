@@ -1,0 +1,24 @@
+### dir     : 05_pointer
+### source  : p10_aliasing.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p10_aliasing.c -o p10_aliasing
+### --- compile ---
+### --- run: ./p10_aliasing  ---
+== 1. 违反严格别名的后果依赖优化级别 ==
+  bad_punning 返回 1073741824
+  storage 的字节 = 0x40000000
+  如果 -O0 和 -O2 结果不同，说明这段代码依赖了 UB
+
+== 2. 三种合法的 type punning ==
+  f = 1
+  memcpy 版本 : 0x3F800000
+  union  版本 : 0x3F800000
+  字节   版本 : 0x3F800000
+  IEEE-754 单精度 1.0 应为 0x3F800000
+
+== 3. 最佳实践 ==
+  - 需要按位解释一个对象时，用 memcpy（首选）或 union
+  - 永远不要写 *(float*)&some_int
+  - 遍历对象表示只用 unsigned char*
+  - 编译时加 -fno-strict-aliasing 只能救老代码，不能当成解决方案
+### exit code: 0

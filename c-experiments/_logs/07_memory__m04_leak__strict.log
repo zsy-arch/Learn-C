@@ -1,0 +1,11 @@
+### dir     : 07_memory
+### source  : m04_leak.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror m04_leak.c -o m04_leak
+### --- compile ---
+### --- run: ./m04_leak  ---
+故意制造 3 处内存泄漏，共 128 + 256 + 64 = 448 字节
+对照：no_leak(1) 返回 -2，没有泄漏
+对照：no_leak(0) 返回 0，没有泄漏
+程序正常退出（泄漏不会让程序崩溃，这正是它危险的地方）
+### exit code: 0

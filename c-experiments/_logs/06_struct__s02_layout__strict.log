@@ -1,0 +1,59 @@
+### dir     : 06_struct
+### source  : s02_layout.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror s02_layout.c -o s02_layout
+### --- compile ---
+### --- run: ./s02_layout  ---
+== 1. 成员顺序影响结构体大小 ==
+  struct Bad  { char a; int b; char c; double d; }
+    sizeof = 24, alignof = 8
+    offsetof: a=0 b=4 c=8 d=16
+    有效数据 = 1+4+1+8 = 14 字节，实际占 24 字节，浪费 10 字节
+
+  struct Good { double d; int b; char a; char c; }
+    sizeof = 16, alignof = 8
+    offsetof: d=0 b=8 a=12 c=13
+    同样的数据，只占 16 字节，浪费 2 字节
+
+== 2. 各基本类型的对齐要求 ==
+  alignof(char)=1  alignof(short)=2  alignof(int)=4
+  alignof(long)=8  alignof(double)=8 alignof(void*)=8
+  规则: 成员 offset 必须是自己 alignof 的整数倍；
+        结构体总大小必须是「最大成员 alignof」的整数倍（尾部补齐）
+
+== 3. 画出 struct Bad 的字节地图 ==
+    偏移  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+         [a][ ][ ][ ][    b     ][c][ ][ ][ ][ ][ ][ ][ ]
+         16 ......................23
+         [          d(double)          ]
+    [ ] = padding（编译器插入的空洞，内容不确定）
+
+== 4. 尾部填充（tail padding）==
+  struct OneChar { char a; }  sizeof = 1
+  struct Good 的最后一个成员在 offset 13，但 sizeof=16
+  因为数组里每个元素都必须满足对齐，所以尾部要补齐
+  验证: &arr[1] - &arr[0] = 16 字节 = sizeof(struct Good)
+
+== 5. 嵌套结构体的对齐会向外传播 ==
+  struct Nested { char tag; struct Bad inner; char end; }
+    sizeof = 40, alignof = 8
+    offsetof: tag=0 inner=8 end=32
+
+== 6. #pragma pack 强制紧凑（代价：未对齐访问）==
+  struct Packed（pack(1)）sizeof = 14
+    offsetof: a=0 b=1 c=5 d=6
+  只在解析二进制协议/文件格式时用，且要注意取成员地址会产生未对齐指针
+
+== 7. padding 字节的内容是不确定的 ==
+  => 不要用 memcmp 比较结构体
+  => 不要把带 padding 的结构体直接 fwrite 到文件再在别的平台读
+  Bad            sizeof=24   char,int,char,double
+  Good           sizeof=16   double,int,char,char
+  Packed         sizeof=14   pack(1)
+  Nested         sizeof=40   char,Bad,char
+
+== 最佳实践 ==
+  1) 成员按对齐要求从大到小排列，天然省内存
+  2) 想确认布局就用 offsetof / sizeof / alignof，不要靠猜
+  3) 跨平台序列化要逐字段读写，不要整块 memcpy 结构体
+### exit code: 0

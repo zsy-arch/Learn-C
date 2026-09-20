@@ -1,0 +1,33 @@
+mkdir -p build
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wconversion -Wsign-conversion -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wcast-qual -Wwrite-strings -O0 -g -MMD -MP -c vec.c -o build/vec.o
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wconversion -Wsign-conversion -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wcast-qual -Wwrite-strings -O0 -g -MMD -MP -c slist.c -o build/slist.o
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wconversion -Wsign-conversion -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wcast-qual -Wwrite-strings -O0 -g -MMD -MP -c sstr.c -o build/sstr.o
+cc -std=c17 -Wall -Wextra -Wpedantic -Werror -Wshadow -Wconversion -Wsign-conversion -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -Wcast-qual -Wwrite-strings -O0 -g -MMD -MP -c main.c -o build/main.o
+cc build/vec.o build/slist.o build/sstr.o build/main.o  -o build/demo
+=========== 综合练习测试 ===========
+== Vec 动态数组 ==
+  push 10 个之后: len=10 cap=16（容量按翻倍增长）
+  vec_get(&v, 999, &out) -> index out of range（越界被拦住）
+  pop 出来的是 81（最后一个 9*9）
+  当前内容: 100 1 4 9 16 25 36 49 64 
+  shrink_to_fit: cap 16 -> 9
+  vec_free 调用两次也安全（内部已置 NULL）
+
+== SList 单链表 ==
+  遍历结果: 0 1 2 3 
+  删掉所有 2 之后 size=3
+  反转后第一个元素是 3
+  slist_free 调用两次也安全
+
+== sstr 字符串工具 ==
+  sstr_copy(buf[8], "hello") -> "hello" 返回 5
+  sstr_copy(buf[8], "0123456789") -> "0123456" 返回 10 (>=8 说明截断)
+  sstr_cat -> "abcdefg" 返回 10
+  sstr_dup -> "duplicate me" @0x1012b96d0
+  sstr_trim("   \t hello world \n  ") -> "hello world"
+  sstr_upper -> "MIXED CASE 123"
+  sstr_lower -> "mixed case 123"
+  starts_with / ends_with OK
+  sstr_split("a,bb,ccc,dddd", ',') -> 4 段: [a] [bb] [ccc] [dddd]
+
+=========== 结果: 58 passed, 0 failed ===========

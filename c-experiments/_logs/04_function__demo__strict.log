@@ -1,0 +1,43 @@
+### dir     : 04_function
+### source  : demo.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror demo.c -o demo
+### --- compile ---
+### --- run: ./demo  ---
+== 1. C 只有值传递（pass by value）==
+  调用前: a = 1, &a = 0x16b5f5e28
+    进入函数: 形参 x = 1, &x = 0x16b5f5dac
+    函数内改成 x = 999（改的是副本）
+  调用后: a = 1  <-- 没变！形参是实参的一份拷贝
+
+== 2. 想改调用者的变量，就把「地址」按值传进去 ==
+  调用前: a = 1
+    进入函数: px = 0x16b5f5e28, *px = 1
+  调用后: a = 999  <-- 变了。传的是 a 的地址的副本
+
+== 3. 栈帧：递归时每层局部变量的地址 ==
+    depth=0  &local=0x16b5f5d9c
+    depth=1  &local=0x16b5f5d4c   与上一层相差 80 字节
+    depth=2  &local=0x16b5f5cfc   与上一层相差 80 字节
+    depth=3  &local=0x16b5f5cac   与上一层相差 80 字节
+    depth=4  &local=0x16b5f5c5c   与上一层相差 80 字节
+  地址递减 => 本平台栈向低地址方向生长
+
+== 4. 递归 ==
+  factorial(0) = 1
+  factorial(5) = 120
+  factorial(10) = 3628800
+  注意：factorial(21) 就会让 unsigned long long 溢出
+
+== 5. 错误处理：返回状态码 + 出参 ==
+  safe_div(10,3) -> OK           result=3
+  safe_div(10,0) -> ERR_DIV_ZERO result 未被修改，仍是 3
+  safe_div(10,2,NULL) -> ERR_NULL_ARG
+
+== 6. goto cleanup 与所有权转移 ==
+  build_report 返回 0, report = "report-32"
+
+== 7. 函数声明的重要性 ==
+  C17 里调用没声明过的函数是硬错误（C89 会隐式声明为返回 int）
+  所以：先声明（头文件），后使用
+### exit code: 0

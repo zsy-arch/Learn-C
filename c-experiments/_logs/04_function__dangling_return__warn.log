@@ -1,0 +1,16 @@
+### dir     : 04_function
+### source  : dangling_return.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g dangling_return.c -o dangling_return
+### --- compile ---
+dangling_return.c:9:13: warning: address of stack memory associated with local variable 'local' returned [-Wreturn-stack-address]
+    9 |     return &local;          /* 危险！编译器会警告 -Wreturn-stack-address */
+      |             ^~~~~
+dangling_return.c:15:12: warning: address of stack memory associated with local variable 'buf' returned [-Wreturn-stack-address]
+   15 |     return buf;             /* 同样危险 */
+      |            ^~~
+2 warnings generated.
+### --- run: ./dangling_return  ---
+读取悬垂指针 *p = 12345
+读取悬垂指针 s  = ��k
+### exit code: 0

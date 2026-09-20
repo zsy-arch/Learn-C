@@ -1,0 +1,20 @@
+### dir     : 08_ub
+### source  : u01_signed_overflow.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer u01_signed_overflow.c -o u01_signed_overflow_san
+### --- compile ---
+### --- run: ./u01_signed_overflow_san  ---
+u01_signed_overflow.c:16:15: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u01_signed_overflow.c:16:15 
+u01_signed_overflow.c:22:15: runtime error: negation of -2147483648 cannot be represented in type 'int'; cast to an unsigned type to negate this value to itself
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u01_signed_overflow.c:22:15 
+u01_signed_overflow.c:28:15: runtime error: division of -2147483648 by -1 cannot be represented in type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u01_signed_overflow.c:28:15 
+INT_MAX = 2147483647
+即将计算 a + 1，其中 a = 2147483647
+a + 1 = -2147483648   <-- 没有任何保证，UBSan 会在上一行报错
+
+INT_MIN = -2147483648
+-INT_MIN = -2147483648   <-- 同样是 UB
+INT_MIN / -1 = -2147483648
+### exit code: 0

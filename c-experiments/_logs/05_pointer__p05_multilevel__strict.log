@@ -1,0 +1,35 @@
+### dir     : 05_pointer
+### source  : p05_multilevel.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p05_multilevel.c -o p05_multilevel
+### --- compile ---
+### --- run: ./p05_multilevel  ---
+== 1. 一步步看清 int** ==
+  v    = 42        &v   = 0x16f29ddcc
+  p    = 0x16f29ddcc  &p   = 0x16f29ddc0
+  pp   = 0x16f29ddc0  &pp  = 0x16f29ddb8
+  ppp  = 0x16f29ddb8
+  *p   = 42   **pp = 42   ***ppp = 42   <-- 都是同一个 v
+
+  内存示意:
+    ppp ---> pp ---> p ---> v(42)
+    每多一个 * ，就多跳一次地址
+
+== 2. 场景：函数分配内存并回传 ==
+  调用前 buf = 0x0
+  调用后 buf = 0x1012f96d0, 内容 = "buffer of 64 bytes"
+
+== 3. 场景：free 并置空 ==
+  free_and_null 后 buf = 0x0  <-- 已置空，不是悬垂指针
+
+== 4. 场景：argv ==
+  argc = 1
+    argv[0] = "./p05_multilevel"  (argv+0 = 0x16f29e4b0)
+
+== 5. 指针数组 vs 数组指针（读法练习）==
+  int *arr_of_ptr[3]  : sizeof = 24 (3 个指针)
+  int (*ptr_to_arr)[3]: sizeof = 8 (1 个指针)
+  *arr_of_ptr[1]      = 2
+  (*ptr_to_arr)[1]    = 8
+  读法: 从变量名出发，先看右边，再看左边，遇到括号先算括号。
+### exit code: 0

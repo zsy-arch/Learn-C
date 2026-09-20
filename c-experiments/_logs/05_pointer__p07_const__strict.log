@@ -1,0 +1,36 @@
+### dir     : 05_pointer
+### source  : p07_const.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p07_const.c -o p07_const
+### --- compile ---
+### --- run: ./p07_const  ---
+== 从右往左读声明 ==
+  const int *p        : p 是指针 -> 指向 const int   (数据只读，指针可改)
+  int const *p        : 和上面完全一样
+  int * const p       : p 是 const 指针 -> 指向 int   (指针只读，数据可改)
+  const int * const p : 两个都只读
+  技巧：看 const 在 * 的左边还是右边。左边管数据，右边管指针。
+
+== 1. const int *p  —— 指向常量的指针 ==
+  *p1 = 1
+  p1 改指向 b, *p1 = 2   <-- 指针可以换目标
+
+== 2. int * const p —— 常量指针 ==
+  *p2 = 100 之后 a = 100   <-- 数据可以改
+  但 p2 = &b 是编译错误
+
+== 3. const int * const p —— 全都锁死 ==
+  *p3 = 100  (只能读)
+
+== 4. const 在函数接口里的价值 ==
+  fill(data,4,5) 之后 sum = 20
+  sum 的参数写成 const int*，读代码的人一眼就知道它不会改数组
+
+== 5. 一个容易被坑的点 ==
+  int **       不能隐式转成 const int **（会被编译器拒绝/警告）
+  而 int *     可以隐式转成 const int * （加 const 是安全的）
+
+== 6. const 不等于「常量」 ==
+  const int n = 5; 它是「只读变量」，不是编译期常量
+  需要编译期常量请用 enum 或 #define，或 C23 的 constexpr
+### exit code: 0

@@ -1,0 +1,34 @@
+### dir     : 05_pointer
+### source  : p01_basics.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p01_basics.c -o p01_basics
+### --- compile ---
+### --- run: ./p01_basics  ---
+== 1. 变量住在内存里，& 取出它的门牌号 ==
+  n  的值   = 0x11223344
+  n  的地址 = 0x16b279e18        <-- &n
+  p  的值   = 0x16b279e18        <-- p 保存的就是 n 的地址
+  p  的地址 = 0x16b279e10        <-- 指针自己也是个变量，也有地址
+  *p 的值   = 0x11223344    <-- * 顺着地址把值取回来
+
+== 2. 通过指针写，就是改原变量 ==
+  *p = 7 之后, n = 7
+
+== 3. 指针类型决定「解引用读几个字节」 ==
+  word            = 0xAABBCCDD
+  *(unsigned char*)&word = 0xDD    (读 1 字节)
+  *(uint16_t*)&word      = 0xCCDD  (读 2 字节)
+  *(uint32_t*)&word      = 0xAABBCCDD (读 4 字节)
+  字节序: DD CC BB AA  -> 低位在前，说明本机是 little-endian
+
+== 4. 指针类型决定「+1 走多远」 ==
+  sizeof(char)=1  sizeof(int)=4  sizeof(double)=8
+  char*   0x1000 + 1 = 0x1001  (+1)
+  int*    0x1000 + 1 = 0x1004  (+4)
+  double* 0x1000 + 1 = 0x1008  (+8)
+  规律: p + k 的真实地址偏移 = k * sizeof(*p)
+
+== 5. 所有指针本身一样大（本平台 8 字节）==
+  sizeof(char*)=8 sizeof(int*)=8 sizeof(double*)=8 sizeof(void*)=8
+  但它们「指向的东西」大小不同，这才是类型的意义
+### exit code: 0

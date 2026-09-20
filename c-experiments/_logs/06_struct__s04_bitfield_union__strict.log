@@ -1,0 +1,44 @@
+### dir     : 06_struct
+### source  : s04_bitfield_union.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror s04_bitfield_union.c -o s04_bitfield_union
+### --- compile ---
+### --- run: ./s04_bitfield_union  ---
+== 1. 位域：省空间 ==
+  struct Flags 用 4 个字段，sizeof = 4 字节
+  如果用 4 个 int 要 16 字节
+  visible=1 enabled=0 level=9
+  把 level 设成 20（4 位放不下）-> 实际值 = 4  <-- 悄悄截断！
+  （写成字面量 fl.level = 20; 时 clang 会给 -Wbitfield-constant-conversion）
+
+== 2. 位域的可移植性陷阱 ==
+  - 位的排列顺序（先填低位还是高位）是 implementation-defined
+  - 能否跨存储单元边界也是 implementation-defined
+  - 不能对位域取地址（&fl.level 是编译错误）
+  => 解析网络协议时，用移位和掩码比位域更可靠
+  用移位解析 0x45: version=4 ihl=5  <-- 可移植写法
+  用位域解析 0x45: version=4 ihl=5  <-- 依赖实现！
+
+== 3. 联合体：同一块内存的多种解释 ==
+  sizeof(union Value32) = 4  (= 最大成员的大小)
+  写入 v.f = 1.0f
+    v.u     = 0x3F800000   (IEEE-754 位模式)
+    v.i     = 1065353216
+    v.bytes = 00 00 80 3F
+  在 C 里读取非活跃成员是允许的（C++ 不允许），值由对象表示决定
+
+== 4. 用联合体检测字节序 ==
+  0x01020304 的第一个字节 = 0x04 -> little endian
+
+== 5. tagged union：安全地表达「多选一」 ==
+  sizeof(Variant) = 16
+    int    = 42
+    double = 3.14
+    string = "hello"
+  关键：type 字段和 union 的活跃成员必须永远保持一致，这要靠你自己维护
+
+== 6. 枚举的底层类型 ==
+  sizeof(enum{A,B,C}) = 4  (C17 里枚举的底层类型由实现决定，通常是 int)
+  枚举变量可以被赋任意整数值，编译器不一定拦你：
+    Small s = (Small)999; s = 999
+### exit code: 0

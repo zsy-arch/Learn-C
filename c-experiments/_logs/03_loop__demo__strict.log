@@ -1,0 +1,39 @@
+### dir     : 03_loop
+### source  : demo.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror demo.c -o demo
+### --- compile ---
+### --- run: ./demo  ---
+== 1. for：三个部分都可以省略 ==
+  i=0  i=1  i=2  i=3  i=4
+
+== 2. while：条件先判断，可能一次都不执行 ==
+  while(0>0) 循环体执行了 0 次
+
+== 3. do-while：至少执行一次 ==
+  do-while 体执行了一次，m=0
+
+== 4. break / continue ==
+  1..10 中跳过偶数，遇到 7 停止: 1 3 5 
+
+== 5. 循环不变式（loop invariant）：二分查找 ==
+    lo=0 hi=7 mid=3 arr[mid]=7
+    lo=4 hi=7 mid=5 arr[mid]=11
+  找到 11 在下标 5
+
+== 6. 半开区间 [0, n) 是 C 的默认约定 ==
+  len = 7，合法下标是 0..6，arr[7] 就越界了
+  写 i <= len 而不是 i < len 就是经典 off-by-one
+
+== 7. 嵌套循环 + 标签式跳出 ==
+  7 位于 matrix[1][2]
+
+== 8. goto cleanup 资源回收惯用法 ==
+    两块缓冲区都分配成功: a[0]=A b[0]=B
+  load_two_buffers(16, 32) 返回 0
+
+== 9. 浮点数不能用来控制循环步进 ==
+  for(d=0.0; d<1.0; d+=0.1) 实际跑了 11 次（你以为是 10 次）
+  累加十次 0.1 = 0.99999999999999988898
+  正确做法：用整数计数，需要时再换算成浮点
+### exit code: 0

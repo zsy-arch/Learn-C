@@ -1,0 +1,37 @@
+### dir     : 08_ub
+### source  : u04_uninit.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g u04_uninit.c -o u04_uninit
+### --- compile ---
+u04_uninit.c:26:79: warning: variable 'x' is uninitialized when used here [-Wuninitialized]
+   26 |     printf("  未初始化的 x = %d   <-- 值不确定，读它就是 UB\n", x);
+      |                                                                 ^
+u04_uninit.c:25:10: note: initialize the variable 'x' to silence this warning
+   25 |     int x;                      /* 没有初始化 */
+      |          ^
+      |           = 0
+u04_uninit.c:30:102: warning: variable 'p' is uninitialized when used here [-Wuninitialized]
+   30 |     printf("  未初始化的 p = %p   <-- 解引用它会发生什么，没人能保证\n", (void *)p);
+      |                                                                                  ^
+u04_uninit.c:29:11: note: initialize the variable 'p' to silence this warning
+   29 |     int *p;
+      |           ^
+      |            = NULL
+2 warnings generated.
+### --- run: ./u04_uninit  ---
+== 1. 未初始化的局部变量 ==
+  未初始化的 x = -453620320   <-- 值不确定，读它就是 UB
+
+== 2. 未初始化的指针（野指针）==
+  未初始化的 p = 0x1   <-- 解引用它会发生什么，没人能保证
+
+== 3. 栈上的「垃圾」其实是上一个函数留下的数据 ==
+  干净调用: leak_stack_garbage() = -1990994380
+  脏栈之后: leak_stack_garbage() = 1717986916
+  如果两次结果不同，说明你读到的是别的函数的残留数据
+  在真实程序里，这可能是密码、密钥、指针……这就是信息泄漏漏洞
+
+== 4. 正确写法 ==
+  int y = 0;  int *q = NULL;  int arr[8] = {0};
+  y=0 q=0x0 arr[0]=0 —— 定义即初始化，零成本换确定性
+### exit code: 0

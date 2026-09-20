@@ -1,0 +1,35 @@
+### dir     : 06_struct
+### source  : s03_deepcopy.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror s03_deepcopy.c -o s03_deepcopy
+### --- compile ---
+### --- run: ./s03_deepcopy  ---
+== 1. 浅拷贝：两个结构体共享同一块堆内存 ==
+  a        id=1 name="Alice"  name 指针=0x1015fd6d0
+  shallow  id=1 name="Alice"  name 指针=0x1015fd6d0
+  两者 name 指针相同? 是  <-- 这就是浅拷贝
+  通过 shallow 改名字...
+  a        id=1 name="Xlice"  name 指针=0x1015fd6d0
+  a 的名字也被改了！这通常不是你想要的
+
+== 2. 浅拷贝的致命后果：double free ==
+  free(a.name); free(shallow.name);  // 同一块内存被释放两次 -> UB
+  本程序不会真的这么做，请看 s03_doublefree.c + ASan
+
+== 3. 深拷贝：各自持有独立的堆内存 ==
+  a        id=1 name="Xlice"  name 指针=0x1015fd6d0
+  deep     id=1 name="Xlice"  name 指针=0x1015fd6e0
+  两者 name 指针相同? 否  <-- 独立副本
+  a        id=1 name="Xlice"  name 指针=0x1015fd6d0
+  deep     id=1 name="Zlice"  name 指针=0x1015fd6e0
+  改 deep 不影响 a
+
+== 4. 正确释放 ==
+  每块 malloc 恰好 free 一次
+
+== 最佳实践 ==
+  1) 结构体里一旦出现指针成员，就必须明确「谁拥有这块内存」
+  2) 为这类结构体配套写 init / copy / free 三件套
+  3) 不要用 = 复制带所有权的结构体，除非你明确要转移所有权
+  4) free 之后把指针成员置 NULL
+### exit code: 0

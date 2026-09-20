@@ -1,0 +1,55 @@
+### dir     : 05_pointer
+### source  : p02_decay.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g p02_decay.c -o p02_decay
+### --- compile ---
+p02_decay.c:12:101: warning: sizeof on array function parameter will return size of 'int *' instead of 'int[]' [-Wsizeof-array-argument]
+   12 |     printf("    void f(int a[])     : sizeof(a) = %zu  <-- 骗人的写法，还是指针\n", sizeof(a));
+      |                                                                                           ^
+p02_decay.c:10:33: note: declared here
+   10 | static void by_array_syntax(int a[])
+      |                                 ^
+p02_decay.c:17:99: warning: sizeof on array function parameter will return size of 'int *' instead of 'int[10]' [-Wsizeof-array-argument]
+   17 |     printf("    void f(int a[10])   : sizeof(a) = %zu  <-- 那个 10 被编译器无视\n", sizeof(a));
+      |                                                                                           ^
+p02_decay.c:15:32: note: declared here
+   15 | static void by_sized_array(int a[10])
+      |                                ^
+2 warnings generated.
+### --- run: ./p02_decay  ---
+== 1. 在「看得见数组」的作用域里 ==
+  sizeof(arr)            = 20  (5 个 int = 5*4)
+  sizeof(arr[0])         = 4
+  元素个数 = sizeof(arr)/sizeof(arr[0]) = 5
+
+== 2. 数组名在大多数表达式里「退化」成指向首元素的指针 ==
+  arr      = 0x16ba71e00
+  &arr[0]  = 0x16ba71e00   <-- 和 arr 相同
+  &arr     = 0x16ba71e00   <-- 数值相同，但类型是 int(*)[5]！
+  sizeof(p)= 8   <-- 退化之后长度信息就没了
+
+== 3. 类型不同 => +1 走的距离不同 ==
+  arr  + 1 = 0x16ba71e04  (+4 字节, 跳 1 个 int)
+  &arr + 1 = 0x16ba71e14  (+20 字节, 跳整个数组!)
+
+== 4. 传进函数以后，长度信息彻底丢失 ==
+    void f(int *a)      : sizeof(a) = 8  <-- 指针大小
+    void f(int a[])     : sizeof(a) = 8  <-- 骗人的写法，还是指针
+    void f(int a[10])   : sizeof(a) = 8  <-- 那个 10 被编译器无视
+    void f(int (*a)[5]) : sizeof(*a) = 20  <-- 真的拿到了数组大小
+                          元素个数 = 5
+
+== 5. 三种下标写法完全等价 ==
+  arr[2]    = 3
+  *(arr+2)  = 3
+  p[2]      = 3
+  2[arr]    = 3   <-- 合法但请永远不要这么写
+  因为 a[i] 被定义为 *(a + i)，加法可交换
+
+== 6. 不退化的两个例外 ==
+  sizeof(arr)  不退化 -> 20
+  &arr         不退化 -> 类型 int(*)[5]
+
+== 结论 ==
+  只要把数组传给函数，就必须「额外把长度也传进去」。
+### exit code: 0

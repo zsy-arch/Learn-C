@@ -1,0 +1,15 @@
+### dir     : 01_variables
+### source  : signcmp.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g signcmp.c -o signcmp
+### --- compile ---
+signcmp.c:10:11: warning: comparison of integers of different signs: 'int' and 'unsigned int' [-Wsign-compare]
+   10 |     if (i < u) {                 /* 编译器会给 -Wsign-compare 警告 */
+      |         ~ ^ ~
+1 warning generated.
+### --- run: ./signcmp  ---
+i < u  不成立  <-- 反直觉，因为 i 被转成了 4294967295
+s[0]=a
+s[1]=b
+s[2]=c
+### exit code: 0

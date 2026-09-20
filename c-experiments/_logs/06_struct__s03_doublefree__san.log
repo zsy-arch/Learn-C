@@ -1,0 +1,27 @@
+### dir     : 06_struct
+### source  : s03_doublefree.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer s03_doublefree.c -o s03_doublefree_san
+### --- compile ---
+### --- run: ./s03_doublefree_san  ---
+=================================================================
+==91091==ERROR: AddressSanitizer: attempting double-free on 0x602000000970 in thread T0:
+    #0 0x0001048a5308 in free+0x7c (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x41308)
+    #1 0x0001040f489c in main s03_doublefree.c:22
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+0x602000000970 is located 0 bytes inside of 8-byte region [0x602000000970,0x602000000978)
+freed by thread T0 here:
+    #0 0x0001048a5308 in free+0x7c (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x41308)
+    #1 0x0001040f4894 in main s03_doublefree.c:21
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+previously allocated by thread T0 here:
+    #0 0x0001048a5214 in malloc+0x78 (libclang_rt.asan_osx_dynamic.dylib:arm64e+0x41214)
+    #1 0x0001040f4824 in main s03_doublefree.c:13
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+SUMMARY: AddressSanitizer: double-free s03_doublefree.c:22 in main
+==91091==ABORTING
+a.name=0x602000000970  b.name=0x602000000970
+### exit code: 134

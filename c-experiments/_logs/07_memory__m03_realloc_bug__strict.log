@@ -1,0 +1,27 @@
+### dir     : 07_memory
+### source  : m03_realloc_bug.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror m03_realloc_bug.c -o m03_realloc_bug
+### --- compile ---
+### --- run: ./m03_realloc_bug  ---
+== 正确写法：realloc 结果先放临时变量 ==
+  扩容前 p=0x104c856d0 内容="abc"
+  扩容后 p=0x104c856e0 内容="abc"  <-- 内容被保留
+
+== 用一个「一定会失败」的超大尺寸来验证 ==
+  q=0x104c856d0 内容="xyz"
+  grow_good 失败，但 q 仍然是 0x104c856d0，内容仍是 "xyz"
+  -> 可以正常 free，没有泄漏
+
+== 反例演示：grow_bad ==
+  调用前 r=0x104c856d0 内容="lost"
+  调用后 r=0x0  <-- 变成 NULL 了
+  原来那 8 字节的地址已经没人知道，永远无法 free —— 内存泄漏
+  而且里面的 "lost" 也彻底丢了
+
+== 最佳实践 ==
+  1) 永远写 tmp = realloc(p, n); if (tmp) p = tmp;
+  2) 不要用 realloc(p, 0) 来释放，直接 free(p)
+  3) realloc 之后，所有指向旧块的指针/迭代器全部作废
+  4) 扩容策略用「翻倍」而不是「每次 +1」，否则是 O(n^2)
+### exit code: 0

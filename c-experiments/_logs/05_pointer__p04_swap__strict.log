@@ -1,0 +1,26 @@
+### dir     : 05_pointer
+### source  : p04_swap.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror p04_swap.c -o p04_swap
+### --- compile ---
+### --- run: ./p04_swap  ---
+== 1. 反例：swap_broken ==
+  调用前 x=1 y=2   &x=0x16fc39e18 &y=0x16fc39e14
+    [broken] 入口 &a=0x16fc39d9c &b=0x16fc39d98  a=1 b=2
+    [broken] 出口              a=2 b=1  (副本换好了，没用)
+  调用后 x=1 y=2   <-- 没换！
+
+== 2. 正确：swap_ok ==
+  调用前 x=1 y=2
+    [ok]     入口 pa=0x16fc39e18 pb=0x16fc39e14
+  调用后 x=2 y=1   <-- 换成功了
+
+== 3. 指针也是值：改指针本身也需要多一层 ==
+  初始 p -> a(10)
+  retarget_broken 后 p -> 10   <-- 没改
+  retarget_ok     后 p -> 20   <-- 改了
+
+== 4. 口诀 ==
+  想在函数里修改 T 类型的东西，就传 T* 。
+  想修改 int，传 int*；想修改 int*，传 int** 。
+### exit code: 0

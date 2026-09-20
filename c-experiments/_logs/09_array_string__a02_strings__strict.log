@@ -1,0 +1,60 @@
+### dir     : 09_array_string
+### source  : a02_strings.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror a02_strings.c -o a02_strings
+### --- compile ---
+### --- run: ./a02_strings  ---
+== 1. C 字符串 = 以 '\0' 结尾的 char 数组 ==
+  char s[] = "abc";  sizeof=4  strlen=3
+  字节: 'a'(0x61) 'b'(0x62) 'c'(0x63) '.'(0x00) 
+  最后那个 0x00 就是终止符，strlen 不算它，sizeof 算
+
+== 2. 没有 '\0' 就不是字符串 ==
+  char notstr[3] = {'a','b','c'};  对它调用 strlen 会一直往后读 —— UB
+  想安全地打印，用 %.*s 限定长度: "abc"
+
+== 3. strcpy 是缓冲区溢出的头号来源 ==
+  char small[8];  strcpy(small, "1234567") 需要 8 字节 —— 刚好装下
+  strcpy 之后    "1234567"  strlen=7  buf=8
+  如果源串是 8 个字符，就会写到 small[8] —— 越界（见 a03_overflow.c）
+
+== 4. snprintf 是最推荐的安全写法 ==
+  snprintf(dst, 8, "%s", "0123456789")
+    返回值 = 10  <-- 这是「本来需要的长度」，不是实际写入的长度
+  dst              "0123456"  strlen=7  buf=8
+    截断判断: if (need < 0 || (size_t)need >= sizeof dst) -> 发生了截断
+    snprintf 永远保证以 '\0' 结尾（只要 size > 0）
+
+== 5. strncpy 不是安全版 strcpy！==
+  strncpy(t1, "0123456789", 8) 之后 t1 没有 '\0' 结尾！
+  前 8 字节: 01234567
+  必须自己补: t1[sizeof t1 - 1] = '\0';
+  补 \0 之后    "0123456"  strlen=7  buf=8
+  另一个坑：源串短时 strncpy 会把剩余空间全填 '\0'（性能浪费）
+  t2 的 8 个字节: 61 62 00 00 00 00 00 00 
+
+== 6. 常用函数速查 ==
+  strlen("hello world")        = 11
+  strchr(a, 'o') - a     = 4  (第一个 'o' 的下标)
+  strrchr(a, 'o') - a    = 7  (最后一个 'o')
+  strstr(a, "wor") - a   = 6
+  strcmp("abc","abd")    = -1  (<0 表示前者小)
+  strncmp("abc","abd",2) = 0  (只比前 2 个字符)
+
+== 7. memcpy vs memmove ==
+  原始:                0123456789
+  memmove(buf+2,buf,5): 0101234789   <-- 重叠时安全
+  memcpy 的前提是「源和目的不重叠」，重叠就是 UB
+  拿不准就用 memmove，代价很小
+
+== 8. 动态字符串 ==
+  malloc 版本    "dynamic string"  strlen=14  buf=15
+  strdup 也可以，但它是 POSIX，不在 C17 标准里（C23 才加入）
+
+== 最佳实践 ==
+  1) 首选 snprintf，永远检查返回值判断是否截断
+  2) 不要用 strcpy/strcat/sprintf/gets
+  3) strncpy 不保证 '\0' 结尾，用它之后一定手动补
+  4) 分配字符串缓冲区时永远记得 +1
+  5) 需要二进制安全就自己带长度，别依赖 '\0'
+### exit code: 0

@@ -1,0 +1,47 @@
+### dir     : 07_memory
+### source  : m02_alloc.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror m02_alloc.c -o m02_alloc
+### --- compile ---
+### --- run: ./m02_alloc  ---
+== 1. malloc：分配但不初始化 ==
+  malloc(5 * 4) = 0x10534d6d0
+  内容是「不确定的」，直接读就是 UB。本次实际读到（仅供观察）：
+  malloc 后未初始化 [0, 0, 0, 0, 0]
+  手动初始化后     [0, 10, 20, 30, 40]
+
+== 2. calloc：分配 + 清零，还能检查乘法溢出 ==
+  calloc 后             [0, 0, 0, 0, 0]
+  calloc(nmemb, size) 内部会检查 nmemb*size 是否溢出，比 malloc(n*size) 安全
+
+== 3. realloc：扩容 / 缩容 ==
+  扩容前 a = 0x10534d6d0
+  扩容后 a = 0x10534d500
+  前 5 个元素被保留：0 10 20 30 40 
+  新增部分的内容是不确定的，必须自己初始化
+  补齐之后           [0, 10, 20, 30, 40, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+
+== 4. realloc 的三个特殊约定 ==
+  realloc(NULL, size)  等价于 malloc(size)
+  realloc(p, 0)        C17 里是 implementation-defined，别用；要释放就写 free(p)
+  realloc 可能「原地扩容」也可能「搬家」，搬家后旧指针立刻失效
+
+== 5. 演示搬家：所有指向旧内存的指针都会悬垂 ==
+  扩容前: arr=0x10534D6D0  &arr[2]=0x10534D6D8  arr[2]=2
+  扩容后: arr=0x10534eb80  （搬家了！旧地址上的别名全部作废）
+  正确做法：realloc 之后重新计算偏移，&arr[2] = 0x10534eb88，arr[2]=2
+
+== 6. free 的规则 ==
+  free(NULL)            合法，什么都不做
+  free 同一块两次        UB (double free)
+  free 非 malloc 的指针  UB
+  free 之后再用          UB (use after free)
+  malloc/free 必须一一配对
+
+== 7. 分配大小的整数溢出 ==
+  malloc(9223372036854775808 * 4) 的乘法会回绕成 0 —— 会分配一个很小的块！
+  防御写法: if (n > SIZE_MAX / sizeof *p) { /* 拒绝 */ }
+  检查生效，拒绝这次分配
+
+  全部释放完毕
+### exit code: 0

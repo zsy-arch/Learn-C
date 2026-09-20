@@ -1,0 +1,58 @@
+### dir     : 08_ub
+### source  : u02_oob.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer u02_oob.c -o u02_oob_san
+### --- compile ---
+### --- run: ./u02_oob_san stack ---
+u02_oob.c:11:58: runtime error: index 5 out of bounds for type 'int[5]'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior u02_oob.c:11:58 
+=================================================================
+==91240==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x00016d0c9c54 at pc 0x000102d34dec bp 0x00016d0c9c10 sp 0x00016d0c9c08
+READ of size 4 at 0x00016d0c9c54 thread T0
+    #0 0x000102d34de8 in stack_oob u02_oob.c:11
+    #1 0x000102d34a60 in main u02_oob.c:44
+    #2 0x00018102be7c in start+0x1a1c (dyld:arm64e+0x31e7c)
+
+Address 0x00016d0c9c54 is located in stack of thread T0 at offset 52 in frame
+    #0 0x000102d34b40 in stack_oob u02_oob.c:8
+
+  This frame has 1 object(s):
+    [32, 52) 'arr' (line 9) <== Memory access at offset 52 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow u02_oob.c:11 in stack_oob
+Shadow bytes around the buggy address:
+  0x00016d0c9980: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9a00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9a80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9b00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9b80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x00016d0c9c00: 00 00 00 00 f1 f1 f1 f1 00 00[04]f3 f3 f3 f3 f3
+  0x00016d0c9c80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9d00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9d80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9e00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x00016d0c9e80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==91240==ABORTING
+运行模式: stack  (可选: stack | heap | offbyone)
+== 栈上数组越界 ==
+### exit code: 134

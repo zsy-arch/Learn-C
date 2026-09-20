@@ -1,0 +1,25 @@
+### dir     : 03_loop
+### source  : unsigned_loop.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g unsigned_loop.c -o unsigned_loop
+### --- compile ---
+### --- run: ./unsigned_loop  ---
+== 错误写法：size_t i 倒着数 ==
+  i=2
+  i=1
+  i=0
+  i=18446744073709551615
+  i=18446744073709551614
+  i=18446744073709551613
+  ...安全阀触发，这是死循环！i 现在 = 18446744073709551612
+
+== 正确写法 1：下标 +1 偏移 ==
+  arr[2]=30
+  arr[1]=20
+  arr[0]=10
+
+== 正确写法 2：用有符号类型 ==
+  arr[2]=30
+  arr[1]=20
+  arr[0]=10
+### exit code: 0

@@ -1,0 +1,17 @@
+### dir     : 05_linked_list
+### source  : leak_demo.c
+### mode    : warn
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g leak_demo.c -o leak_demo_warn
+### --- compile ---
+### --- run: ./leak_demo_warn safe ---
+模式: safe
+
+== 正确写法 ==
+  链表: 5 -> 4 -> 3 -> 2 -> 1 -> NULL
+  已全部释放，0 泄漏。
+
+  三条纪律：
+    1. free(cur) 之前先存 cur->next
+    2. 每个 malloc 都要有配对的 free
+    3. free 之后立刻把指针置 NULL（或让它离开作用域）
+### exit code: 0

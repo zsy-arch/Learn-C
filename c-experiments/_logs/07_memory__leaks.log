@@ -1,0 +1,31 @@
+leaks Report Version: 4.0, multi-line stacks
+Process 91178: 192 nodes malloced for 31 KB
+Process 91178: 3 leaks for 560 total leaked bytes.
+
+STACK OF 1 INSTANCE OF 'ROOT LEAK: <malloc in leak_early_return>':
+3   dyld                                  0x18102be80 start + 6688
+2   m04_leak                              0x102014494 main + 52  m04_leak.c:59
+1   m04_leak                              0x102014554 leak_early_return + 24  m04_leak.c:20
+0   libsystem_malloc.dylib                0x181228630 _malloc_zone_malloc_instrumented_or_legacy + 152 
+====
+    1 (320 bytes) ROOT LEAK: <malloc in leak_early_return 0x76d500c000> [320]
+
+STACK OF 1 INSTANCE OF 'ROOT LEAK: <malloc in leak_forget>':
+3   dyld                                  0x18102be80 start + 6688
+2   m04_leak                              0x102014488 main + 40  m04_leak.c:57
+1   m04_leak                              0x102014508 leak_forget + 20  m04_leak.c:10
+0   libsystem_malloc.dylib                0x181228630 _malloc_zone_malloc_instrumented_or_legacy + 152 
+====
+    1 (160 bytes) ROOT LEAK: <malloc in leak_forget 0x76d5008000> [160]
+
+STACK OF 1 INSTANCE OF 'ROOT LEAK: <malloc in leak_overwrite>':
+3   dyld                                  0x18102be80 start + 6688
+2   m04_leak                              0x102014498 main + 56  m04_leak.c:59
+1   m04_leak                              0x1020145c0 leak_overwrite + 24  m04_leak.c:34
+0   libsystem_malloc.dylib                0x181228630 _malloc_zone_malloc_instrumented_or_legacy + 152 
+====
+    1 (80 bytes) ROOT LEAK: <malloc in leak_overwrite 0x76d4c48000> [80]
+
+
+
+Binary Images:

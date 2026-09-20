@@ -1,0 +1,10 @@
+### dir     : 09_array_string
+### source  : a03_overflow.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror a03_overflow.c -o a03_overflow
+### --- compile ---
+### --- run: ./a03_overflow safe 0123456789ABCDEF ---
+模式: safe   源串: "0123456789ABCDEF" (16 字符)  目标 buf 只有 8 字节
+== 安全版本 snprintf ==
+  buf="0123456"  canary=0x11223344 (完好)  [发生截断]
+### exit code: 0

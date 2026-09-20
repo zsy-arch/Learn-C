@@ -1,0 +1,41 @@
+### dir     : 06_struct
+### source  : s06_list.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror s06_list.c -o s06_list
+### --- compile ---
+### --- run: ./s06_list  ---
+== 1. 自引用结构体 ==
+  sizeof(Node) = 16  (int + padding + 指针)
+  struct Node 里可以放 struct Node*，但不能放 struct Node（无限递归）
+
+== 2. 头插 ==
+  push_front     size=3  3 -> 2 -> 1 -> NULL
+
+== 3. 尾插（二级指针遍历）==
+  push_back      size=6  3 -> 2 -> 1 -> 7 -> 8 -> 9 -> NULL
+
+== 4. 节点在堆上的实际地址 ==
+    node@0x1018096f0 value=3 next=0x1018096e0
+    node@0x1018096e0 value=2 next=0x1018096d0
+    node@0x1018096d0 value=1 next=0x101809700
+    node@0x101809700 value=7 next=0x101809710
+    node@0x101809710 value=8 next=0x101809720
+    node@0x101809720 value=9 next=0x0
+
+== 5. 删除（含删除头节点，无需特判）==
+  before remove  size=7  3 -> 2 -> 1 -> 7 -> 8 -> 9 -> 3 -> NULL
+  删除了 2 个值为 3 的节点
+  after remove   size=5  2 -> 1 -> 7 -> 8 -> 9 -> NULL
+
+== 6. 反转 ==
+  reversed       size=5  9 -> 8 -> 7 -> 1 -> 2 -> NULL
+
+== 7. 释放整条链表 ==
+  after free     size=0  NULL
+
+== 最佳实践 ==
+  1) 遍历删除时用 Node** cur = &head，可以省掉所有头节点特判
+  2) free(cur) 之前一定先把 cur->next 存下来
+  3) 用 malloc(sizeof *n) 而不是 malloc(sizeof(Node))，改类型名时不会错
+  4) 链表的 size 自己维护，不要每次 O(n) 数一遍
+### exit code: 0

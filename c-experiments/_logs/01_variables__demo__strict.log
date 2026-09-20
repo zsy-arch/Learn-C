@@ -1,0 +1,61 @@
+### dir     : 01_variables
+### source  : demo.c
+### mode    : strict
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -Werror demo.c -o demo
+### --- compile ---
+### --- run: ./demo  ---
+== 1. sizeof 基本类型（单位：字节）==
+  char=1  short=2  int=4  long=8  long long=8
+  float=4 double=8 long double=8 _Bool=1
+  void*=8  size_t=8  ptrdiff_t=8  intptr_t=8
+  CHAR_BIT = 8  (一个 char 有几个 bit)
+
+== 2. 取值范围 ==
+  INT_MIN=-2147483648  INT_MAX=2147483647
+  UINT_MAX=4294967295
+  LONG_MIN=-9223372036854775808 LONG_MAX=9223372036854775807
+  CHAR_MIN=-128 CHAR_MAX=127  -> 本平台 char 是有符号的
+  DBL_DIG=15 FLT_DIG=6
+
+== 3. 字面量的类型与进制 ==
+  10=10  010(八进制)=8  0x10(十六进制)=16  0b? C17 无二进制字面量
+  sizeof('A') = 4  <-- C 里字符字面量是 int，不是 char！
+  sizeof("abc") = 4 <-- 3 个字符 + 1 个 '\0'
+  1/2 = 0   (整数除法，截断)
+  1.0/2 = 0.5 (有一个操作数是 double，整体升成 double)
+  7 % 3 = 1   -7 % 3 = -1 (C99 起商向零截断)
+
+== 4. 无符号回绕是「有定义」的，有符号溢出是 UB ==
+  UINT_MAX + 1 = 0   <-- 模 2^32 回绕，标准明确规定
+  (unsigned char)250 + 10 = 4  <-- 模 2^8 回绕
+  有符号溢出（INT_MAX+1）是 undefined behavior，见 08_ub 实验
+
+== 5. 整数提升与「有符号 vs 无符号」陷阱 ==
+  int i = -1;  unsigned v = 1u;
+  (unsigned)i = 4294967295  <-- -1 的补码被当成巨大的正数
+  i < v 的真实结果 = false  <-- 直觉上 -1 < 1 应该为真！
+  原因：usual arithmetic conversions 把 int 转成了 unsigned int
+
+== 6. 作用域与存储期 ==
+  外层 shadow = 1
+  内层块里可以再定义变量 shadow_inner = 2
+  离开内层块后 shadow 仍是 1
+    counter(): static calls=1, automatic=1
+    counter(): static calls=2, automatic=1
+    counter(): static calls=3, automatic=1
+
+== 7. 未初始化 vs 已初始化 ==
+  静态变量 g_zero_init = 0  (标准保证清零)
+  局部变量必须自己初始化，否则读取它就是 UB（见 08_ub）
+  initialized = 0
+
+== 8. const / static / extern ==
+  const int ci = 10  <-- 只读对象，改它是 UB
+  g_internal(static, 内部链接) = 42
+  g_external(外部链接)         = 7
+
+== 9. bool 与真值 ==
+  0.1 + 0.2 == 0.3 ? false   <-- 浮点不能用 == 比较
+  0.1 + 0.2 = 0.30000000000000004441
+  fabs 差值判断才对：|(0.1+0.2)-0.3| = 0.00000000000000005551
+### exit code: 0

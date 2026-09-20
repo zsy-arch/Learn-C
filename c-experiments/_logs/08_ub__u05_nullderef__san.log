@@ -1,0 +1,15 @@
+### dir     : 08_ub
+### source  : u05_nullderef.c
+### mode    : san
+### command : cc -std=c17 -Wall -Wextra -Wpedantic -O0 -g -fsanitize=address,undefined -fno-omit-frame-pointer u05_nullderef.c -o u05_nullderef_san
+### --- compile ---
+### --- run: ./u05_nullderef_san safe ---
+模式: safe  (可选: safe | crash)
+good_sum(&a)  = 3
+good_sum(NULL) = 0   <-- 判空之后很安全
+
+要点:
+  1) 解引用 NULL 在多数平台会 SIGSEGV，但标准只说是 UB —— 不保证崩溃
+  2) 优化器看到 n->value 就会「推断 n 一定非空」，从而删掉后面的判空分支
+  3) 所有可能返回 NULL 的 API（malloc/fopen/strchr...）都必须检查返回值
+### exit code: 0

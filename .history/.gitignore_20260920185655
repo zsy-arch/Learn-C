@@ -12,6 +12,11 @@
 *.d
 build/
 
+# 没有扩展名的文件默认当成可执行文件忽略
+*
+!*.*
+!Makefile
+
 # macOS / 编辑器杂项
 .DS_Store
 *.swp

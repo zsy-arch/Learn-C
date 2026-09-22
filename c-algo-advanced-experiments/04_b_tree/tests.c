@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int g_pass = 0;
 static int g_fail = 0;
@@ -325,6 +326,289 @@ static bool test_delete_case3c_merge_while_descending(void) {
     return true;
 }
 
+/* ---------- 回归测试：守住三个已修的缺陷 ----------
+ *
+ * 这一节和上面的用例性质不同。上面测的是"B 树该有的行为"，这一节测的是
+ * "曾经错过的地方不许再错"。三个缺陷有一个共同点，也正是它们能一直藏着
+ * 的原因：**btree_verify 全都查不出来**。
+ *
+ *   - 插重复键时先分裂：树被改了结构，但改完仍是一棵合法 B 树。
+ *     两条路径（root 满 / 下降路径上的孩子满）都会中招，而且第一版修复
+ *     只补了前者——后者由 test_dup_insert_into_full_child_is_noop 守。
+ *   - 非叶 root 只剩 0 个 key：树还能正常 search，只是永久多背一层高度。
+ *   - btree_create(1)：建出来的东西根本不是 B 树，但每一步都"合法"。
+ *
+ * 所以这些用例都不依赖 verify_ok 报错，而是各自去检查一个 verify 管不到
+ * 的东西：结构指纹、min_keys 的判定本身、以及进程退出码。 */
+
+/* 把整棵树序列化成 "[k k|<孩子><孩子>]" 形式的结构指纹。
+ *
+ * 为什么不直接比 height/count_nodes/count_keys 就算了？因为那三个数字是
+ * 聚合量，可能一起骗人：一次分裂加一次合并就能让节点数回到原值。指纹把
+ * 每个节点在第几层、装了哪些 key 全都写进字符串，任何结构变动都会让它
+ * 不等——这正是"不做任何修改"这条契约需要的粒度。 */
+static void shape_rec(const BTreeNode *x, char *buf, size_t cap, size_t *len) {
+    if (*len + 1 >= cap) return;
+    *len += (size_t)snprintf(buf + *len, cap - *len, "[");
+    for (int i = 0; i < x->n && *len < cap; i++) {
+        *len += (size_t)snprintf(buf + *len, cap - *len, "%s%d", i ? " " : "", x->keys[i]);
+    }
+    if (!x->is_leaf) {
+        if (*len < cap) *len += (size_t)snprintf(buf + *len, cap - *len, "|");
+        for (int i = 0; i <= x->n && *len < cap; i++) shape_rec(x->children[i], buf, cap, len);
+    }
+    if (*len < cap) *len += (size_t)snprintf(buf + *len, cap - *len, "]");
+}
+
+static void shape_of(const BTree *t, char *buf, size_t cap) {
+    size_t len = 0;
+    buf[0] = '\0';
+    if (!t->root) { snprintf(buf, cap, "(empty)"); return; }
+    shape_rec(t->root, buf, cap, &len);
+}
+
+/* 收集所有 key（中序），用来遍历"每一个已存在的 key 都试一次重复插入"。 */
+static void collect_keys_rec(const BTreeNode *x, int *out, int *cnt) {
+    if (x->is_leaf) {
+        for (int i = 0; i < x->n; i++) out[(*cnt)++] = x->keys[i];
+        return;
+    }
+    for (int i = 0; i < x->n; i++) {
+        collect_keys_rec(x->children[i], out, cnt);
+        out[(*cnt)++] = x->keys[i];
+    }
+    collect_keys_rec(x->children[x->n], out, cnt);
+}
+
+/* 核心断言：往 tree 里插一个已存在的 key，必须返回 false **且结构指纹
+ * 一字不变**。缺陷版本会在这里露馅——返回值是对的，指纹不是。 */
+static bool dup_insert_leaves_tree_untouched(BTree *t, int dup) {
+    char before[1024], after[1024];
+    shape_of(t, before, sizeof before);
+    int h0 = btree_height(t), nodes0 = btree_count_nodes(t), keys0 = btree_count_keys(t);
+
+    CHECK(!btree_insert(t, dup)); /* 契约第一半：返回 false */
+
+    shape_of(t, after, sizeof after);
+    if (strcmp(before, after) != 0) {
+        printf("  重复插入 %d 改动了结构:\n    before: %s\n    after:  %s\n", dup, before, after);
+        return false;
+    }
+    CHECK(btree_height(t) == h0);
+    CHECK(btree_count_nodes(t) == nodes0);
+    CHECK(btree_count_keys(t) == keys0);
+    CHECK(verify_ok(t, "duplicate insert into full root"));
+    CHECK(btree_search(t, dup)); /* 原来那个 key 还在 */
+    return true;
+}
+
+/* root 是满的**叶子**时插重复键。t=2 下 3 个 key 就把 root 填满了。
+ * 缺陷版本在这里会把节点数从 1 变成 3、树高从 0 变成 1。 */
+static bool test_dup_insert_into_full_leaf_root_is_noop(void) {
+    int seed[] = {10, 20, 30};
+    for (size_t d = 0; d < 3; d++) {
+        BTree t = btree_create(2);
+        for (size_t i = 0; i < 3; i++) CHECK(btree_insert(&t, seed[i]));
+        CHECK(t.root->is_leaf && t.root->n == 3); /* 满了：2t-1 = 3 */
+
+        if (!dup_insert_leaves_tree_untouched(&t, seed[d])) { btree_destroy(&t); return false; }
+        btree_destroy(&t);
+    }
+    return true;
+}
+
+/* root 是满的**内部节点**时插重复键——比叶子那一版更接近真实场景，因为
+ * 此时分裂会真的长高一层。t=2 顺序插 1..8 正好得到 root=[2 4 6]（满）、
+ * 高度 1、5 个节点（用 btree_print 实际跑出来的，不是推的）。
+ * 树里每一个 key 都试一遍：叶子里的、root 里的、中间层的。 */
+static bool test_dup_insert_into_full_internal_root_is_noop(void) {
+    BTree t = btree_create(2);
+    for (int i = 1; i <= 8; i++) CHECK(btree_insert(&t, i));
+    CHECK(verify_ok(&t, "build full-internal-root tree"));
+    CHECK(!t.root->is_leaf);
+    CHECK(t.root->n == 3); /* 满了 */
+    CHECK(btree_height(&t) == 1);
+    CHECK(btree_count_nodes(&t) == 5);
+
+    int keys[8];
+    int cnt = 0;
+    collect_keys_rec(t.root, keys, &cnt);
+    CHECK(cnt == 8);
+    for (int i = 0; i < cnt; i++) {
+        if (!dup_insert_leaves_tree_untouched(&t, keys[i])) { btree_destroy(&t); return false; }
+    }
+    btree_destroy(&t);
+    return true;
+}
+
+/* root **不满**、但下降路径上的孩子满了——上面两个用例覆盖不到的那一半。
+ *
+ * 为什么必须单独写：上面三个 test_dup_insert_* 构造的树 root 全是满的，
+ * 于是每次都被 btree_insert 开头那次查找挡住，`insert_nonfull` 里
+ * "先 split_child、再比较被提上去的 key" 这条路径一次都没走到。第一版
+ * 修复只在 root 满的分支前面加了查找，这条路径漏了整整一轮回归测试。
+ *
+ * t=2 下顺序插 10,20,30,40,50 得到 root=[20]（n=1，不满）、孩子 [10] 和
+ * [30 40 50]（n=3=2t-1，满）。往里插已存在的 30/40/50 都会先触发
+ * children[1] 的分裂（节点数 3 -> 4，root 变 [20 40]），然后才发现重复。
+ * 三个 key 分别对应"分裂后落在左半/正好是被提上去的中间键/落在右半"
+ * 三条子路径，都得试。形状是 btree_print 实际跑出来的，不是推的。 */
+static bool test_dup_insert_into_full_child_is_noop(void) {
+    int dups[] = {30, 40, 50}; /* 左半 / 中间键 / 右半 */
+    for (size_t d = 0; d < sizeof(dups) / sizeof(dups[0]); d++) {
+        BTree t = btree_create(2);
+        int build[] = {10, 20, 30, 40, 50};
+        for (size_t i = 0; i < sizeof(build) / sizeof(build[0]); i++) CHECK(btree_insert(&t, build[i]));
+        CHECK(verify_ok(&t, "build full-child tree"));
+        /* root 不满是这个用例的全部前提，钉住它 */
+        CHECK(!t.root->is_leaf && t.root->n == 1);
+        CHECK(t.root->n < 2 * t.t - 1);              /* root 不满 */
+        CHECK(t.root->children[1]->n == 2 * t.t - 1); /* 但这个孩子满了 */
+        CHECK(btree_count_nodes(&t) == 3);
+
+        if (!dup_insert_leaves_tree_untouched(&t, dups[d])) { btree_destroy(&t); return false; }
+        btree_destroy(&t);
+    }
+
+    /* t=3 再走一遍，确认不是 t=2 的巧合。顺序插 1..8 -> root=[3]（n=1<5，
+     * 不满）、孩子 [1 2] 和 [4 5 6 7 8]（n=5=2t-1，满）。 */
+    {
+        BTree t = btree_create(3);
+        for (int i = 1; i <= 8; i++) CHECK(btree_insert(&t, i));
+        CHECK(!t.root->is_leaf && t.root->n == 1);
+        CHECK(t.root->children[1]->n == 5);
+        CHECK(btree_count_nodes(&t) == 3);
+        int probes[] = {4, 5, 6, 7, 8}; /* 满孩子里的每一个 key 都撞一遍 */
+        for (size_t i = 0; i < sizeof(probes) / sizeof(probes[0]); i++) {
+            if (!dup_insert_leaves_tree_untouched(&t, probes[i])) { btree_destroy(&t); return false; }
+        }
+        btree_destroy(&t);
+    }
+    return true;
+}
+
+/* 同一个不变量在 t=3 上再走一遍，确认它不是 t=2 的巧合。
+ * 顺序插 1..18 得到 root=[3 6 9 12 15]（n=5=2t-1，满）、高度 1、7 个节点。 */
+static bool test_dup_insert_into_full_root_t3(void) {
+    BTree t = btree_create(3);
+    for (int i = 1; i <= 18; i++) CHECK(btree_insert(&t, i));
+    CHECK(!t.root->is_leaf && t.root->n == 5);
+    CHECK(btree_height(&t) == 1);
+    CHECK(btree_count_nodes(&t) == 7);
+
+    int probes[] = {1, 3, 9, 15, 17, 18}; /* 叶子首、root 首、root 中、root 末、叶子内、叶子末 */
+    for (size_t i = 0; i < sizeof(probes) / sizeof(probes[0]); i++) {
+        if (!dup_insert_leaves_tree_untouched(&t, probes[i])) { btree_destroy(&t); return false; }
+    }
+    btree_destroy(&t);
+    return true;
+}
+
+/* 手工搭一个节点。node_create 是 btree.c 里的 static，这里只能照着它的
+ * 分配方式重来一遍（keys 容量 2t-1、children 容量 2t），这样 btree_destroy
+ * 才能原样 free 掉，ASan 不会有话说。malloc 失败的处理也跟着库里一致。 */
+static BTreeNode *make_node(int t, bool is_leaf, const int *keys, int n) {
+    BTreeNode *x = malloc(sizeof *x);
+    if (!x) { perror("malloc"); exit(1); }
+    x->keys = malloc(sizeof(int) * (size_t)(2 * t - 1));
+    x->children = malloc(sizeof(BTreeNode *) * (size_t)(2 * t));
+    if (!x->keys || !x->children) { perror("malloc"); exit(1); }
+    x->n = n;
+    x->is_leaf = is_leaf;
+    for (int i = 0; i < n; i++) x->keys[i] = keys[i];
+    return x;
+}
+
+/* 直接测 verify 里 min_keys 的判定：root 的 key 下限必须分叶/非叶两种。
+ *
+ * 缺陷版本写的是 `is_root ? 0 : t - 1`，不分叶子——于是"非叶 root 只剩
+ * 0 个 key、挂着 1 个孩子"这种忘记收缩的形状能完整通过校验。这种树
+ * search 起来一切正常，只是白白多背一层高度，而且这一层会在后续每次
+ * 插入/删除里继续传播。
+ *
+ * 三个用例是一组，缺一不可：只有"非叶 0 key 必须失败"这一条的话，一个
+ * 什么都拒绝的校验器也能通过；两个合法用例是用来钉住"失败是因为 n=0
+ * 而不是因为它是内部节点"的。 */
+static bool test_verify_root_min_keys_splits_leaf_and_internal(void) {
+    char err[256];
+
+    /* (a) 非叶 root，0 个 key，1 个孩子 -> 必须判失败 */
+    {
+        int leafkeys[] = {1};
+        BTree t = btree_create(2);
+        t.root = make_node(2, false, NULL, 0);
+        t.root->children[0] = make_node(2, true, leafkeys, 1);
+
+        bool ok = btree_verify(&t, err, sizeof err);
+        if (ok) {
+            printf("  非叶 root 只有 0 个 key，verify 却放过了（忘记收缩的树被判为合法）\n");
+            btree_destroy(&t);
+            return false;
+        }
+        /* 报错原因得说到点子上，不能是撞上别的检查顺便失败的 */
+        if (!strstr(err, "min is 1")) {
+            printf("  verify 失败了，但原因不对: \"%s\"（期望提到 min is 1）\n", err);
+            btree_destroy(&t);
+            return false;
+        }
+        btree_destroy(&t);
+    }
+
+    /* (b) 叶子 root，0 个 key -> 合法，这就是空树 */
+    {
+        BTree t = btree_create(2);
+        t.root = make_node(2, true, NULL, 0);
+        CHECK(btree_verify(&t, err, sizeof err));
+        btree_destroy(&t);
+    }
+
+    /* (c) 非叶 root，1 个 key，两个最小孩子 -> 合法（下限就是 1，不是 t-1） */
+    {
+        int lk[] = {1}, rk[] = {3}, rootk[] = {2};
+        BTree t = btree_create(2);
+        t.root = make_node(2, false, rootk, 1);
+        t.root->children[0] = make_node(2, true, lk, 1);
+        t.root->children[1] = make_node(2, true, rk, 1);
+        CHECK(btree_verify(&t, err, sizeof err));
+        btree_destroy(&t);
+    }
+    return true;
+}
+
+/* 上一个用例是手工搭形状直接怼 verify；这个是走真实的删除路径，确认
+ * 实现和校验器对"非叶 root 不许剩 0 个 key"这件事的理解是一致的。
+ * 每删一次都查一遍：root 要么是叶子，要么至少有 1 个 key。 */
+static bool test_delete_never_leaves_keyless_internal_root(void) {
+    for (int t_deg = 2; t_deg <= 4; t_deg++) {
+        BTree t = btree_create(t_deg);
+        const int n = 60;
+        for (int i = 1; i <= n; i++) CHECK(btree_insert(&t, i));
+
+        /* 两头往中间删，尽量多触发 root 收缩 */
+        int lo = 1, hi = n;
+        while (lo <= hi) {
+            CHECK(btree_delete(&t, lo));
+            CHECK(verify_ok(&t, "shrink-toward-middle delete"));
+            if (t.root) CHECK(t.root->is_leaf || t.root->n >= 1);
+            lo++;
+            if (lo > hi) break;
+            CHECK(btree_delete(&t, hi));
+            CHECK(verify_ok(&t, "shrink-toward-middle delete"));
+            if (t.root) CHECK(t.root->is_leaf || t.root->n >= 1);
+            hi--;
+        }
+        CHECK(t.root == NULL);
+        btree_destroy(&t);
+    }
+    return true;
+}
+
+/* btree_create 对 t < 2 的守卫由独立程序 guard_check 验证（`make guard`）。
+ * 守卫的做法是打 stderr 然后 exit(1)，同进程内测不了，只能 fork 看退出码；
+ * 而 macOS 的 `leaks --atExit` 撞上 fork 会永久挂死，所以这个用例不留在
+ * 本文件里——tests.c 必须保持 fork-free，否则整个 suite 就漏检泄漏了。
+ * 详见 guard_check.c 顶部注释。 */
+
 /* ---------- larger structured + randomized coverage ---------- */
 
 static bool test_large_sequential_then_reverse_delete(void) {
@@ -416,6 +700,14 @@ int main(void) {
     RUN(test_delete_leaf_case3a_borrow_left);
     RUN(test_delete_leaf_case3b_borrow_right);
     RUN(test_delete_case3c_merge_while_descending);
+
+    /* 回归测试：守住三个 btree_verify 查不出来的已修缺陷 */
+    RUN(test_dup_insert_into_full_leaf_root_is_noop);
+    RUN(test_dup_insert_into_full_internal_root_is_noop);
+    RUN(test_dup_insert_into_full_child_is_noop);
+    RUN(test_dup_insert_into_full_root_t3);
+    RUN(test_verify_root_min_keys_splits_leaf_and_internal);
+    RUN(test_delete_never_leaves_keyless_internal_root);
 
     RUN(test_large_sequential_then_reverse_delete);
     RUN(test_random_stress_t2_1000);

@@ -15,7 +15,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <assert.h>
 
 typedef struct Node {
@@ -122,8 +121,12 @@ static void inorder_iterative(const Node *root, int *out, int *n) {
 }
 
 /* 后序：三种迭代写法里最麻烦的一种，因为“访问自己”要等左右子树都处理完。
- * 这里用“双栈翻转”思路：对镜像前序（根-右-左）求值，再整体反转，
- * 就等价于左-右-根的后序。 */
+ * 这里用“单栈 + 结果反转”思路：先按镜像前序（根-右-左）遍历一遍，
+ * 再把这段结果整体反转，就等价于左-右-根的后序。
+ *
+ * 注意：教科书上常见的另一种写法是“双栈法”——一个栈做遍历、另一个栈存
+ * 结果，最后依次弹出第二个栈。两者原理相同（都是反转镜像前序），但这里
+ * 只用了一个栈，反转直接在输出数组上原地完成，没有第二个栈。 */
 static void postorder_iterative(const Node *root, int *out, int *n) {
     if (root == NULL) return;
     const Node *stack[STACK_CAP];
@@ -217,10 +220,19 @@ static void morris_inorder(Node *root, int *out, int *n) {
  * 遍历完成之后，树里残留了指向“祖先”的 right 指针，
  * 树的形状被永久破坏（部分节点的 right 不再指向真正的右子树，
  * 而是指向了别的节点，等价于在树里“凭空”造出了环）。
+ *
+ * 容易误会的一点：这个 bug 并不会让本函数自己死循环——它照样会终止，
+ * 而且在这棵演示树上连输出都是对的（1..7），所以光看输出根本发现不了。
+ * 原因是 right 指针（无论是真的右孩子还是残留线索）总是指向“中序位置更
+ * 靠后”的节点，而线索对每个节点最多只建立一次，所以 cur 不可能无限绕圈。
+ * 真正的代价被推迟了：之后谁再沿着这些指针做递归（tree_free、递归遍历），
+ * 就会掉进环里出不来。
  */
 static void morris_inorder_BROKEN_no_restore(Node *root, int *out, int *n) {
     Node *cur = root;
-    int guard = 0;               /* 防止真的死循环卡住 demo 程序 */
+    /* guard 只是一根保险丝，不是算法必需的：上面解释了本函数在这棵演示树上
+     * 本来就会正常终止。留着它是为了万一以后改了树的形状也不会把 demo 卡死。 */
+    int guard = 0;
     while (cur != NULL && guard < 100000) {
         guard++;
         if (cur->left == NULL) {
@@ -499,10 +511,13 @@ int main(void) {
     printf("  “错误版”遍历结果: "); print_array(buf, n);
     int broken_intact = tree_equal(broken_root, broken_before);
     printf("  遍历后树结构与遍历前一致？ %s\n", broken_intact ? "是" : "否（树的 right 指针被永久污染，形状已改变）");
-    printf("  说明：右子树为空、但左子树非空的节点，其 right 现在指向了祖先节点，\n");
-    printf("        而不再是 NULL —— 树里出现了环。如果之后再对这棵“坏树”做一次\n");
-    printf("        普通递归中序遍历或普通递归释放（tree_free），会陷入无限递归，\n");
-    printf("        本实验最初就是这样把自己写进了 stack-overflow（详见 README）。\n");
+    printf("  说明：被污染的节点是每个“有左子树”的节点的「中序前驱」——也就是它\n");
+    printf("        左子树里最右侧的那个节点（那里原本 right == NULL，正好被借去当线索）。\n");
+    printf("        本例中就是叶子 1、3、5：它们的 right 现在分别指向自己的中序后继\n");
+    printf("        2、4、6，而不再是 NULL。于是 1->right==2 和 2->left==1 首尾相接，\n");
+    printf("        树里出现了环。如果之后再对这棵“坏树”做普通递归中序遍历或普通\n");
+    printf("        递归释放（tree_free），递归就会在这个环里来回打转、永远到不了\n");
+    printf("        NULL，本实验最初就是这样把自己写进了 stack-overflow（详见 README）。\n");
     printf("        下面按“破坏前收集好的地址列表”安全释放这些节点，而不是沿着\n");
     printf("        被污染的指针递归释放。\n");
     tree_free(broken_before);

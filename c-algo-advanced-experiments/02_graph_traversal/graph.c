@@ -1,6 +1,7 @@
 /* graph.c —— graph.h 的实现 */
 #include "graph.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -42,6 +43,11 @@ static void add_directed_edge(Graph *g, int u, int v)
 
 void graph_add_edge(Graph *g, int u, int v)
 {
+    /* 越界的节点编号是调用者的编程错误，不是运行时可恢复的情况：
+     * 没有这两行的话，graph_add_edge(g, 99, 0) 会直接往 g->adj[99] 写，
+     * 是一次静默的堆越界写——ASan 能抓到，但报错位置离真正的错误很远。 */
+    assert(u >= 0 && u < g->n);
+    assert(v >= 0 && v < g->n);
     add_directed_edge(g, u, v);
     if (!g->directed) {
         add_directed_edge(g, v, u);
@@ -84,6 +90,8 @@ void matrix_destroy(GraphMatrix *g)
 
 void matrix_add_edge(GraphMatrix *g, int u, int v)
 {
+    assert(u >= 0 && u < g->n);
+    assert(v >= 0 && v < g->n);
     g->m[u * g->n + v] = true;
     if (!g->directed) {
         g->m[v * g->n + u] = true;
@@ -92,6 +100,8 @@ void matrix_add_edge(GraphMatrix *g, int u, int v)
 
 bool matrix_has_edge(const GraphMatrix *g, int u, int v)
 {
+    assert(u >= 0 && u < g->n);
+    assert(v >= 0 && v < g->n);
     return g->m[u * g->n + v];
 }
 

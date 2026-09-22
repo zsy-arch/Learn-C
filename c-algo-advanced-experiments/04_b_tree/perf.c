@@ -34,6 +34,7 @@ static unsigned int next_rand(void) {
 
 static int *make_shuffled_keys(int n) {
     int *keys = malloc(sizeof(int) * (size_t)n);
+    if (!keys) { perror("malloc"); exit(1); }
     for (int i = 0; i < n; i++) keys[i] = i;
     for (int i = n - 1; i > 0; i--) {
         int j = (int)(next_rand() % (unsigned int)(i + 1));
@@ -107,17 +108,28 @@ static void bench_one_degree(int t, int n) {
 
     /* Range query cost at several widths, to compare against the B+-tree
      * leaf-linked-list scan in the B+-tree chapter. */
+    /* n/10 在 n=1000 时正好等于前面已有的 100，会让同一个宽度量两遍
+     * （旧的 perf_out.txt 里 t=2/n=1000 那组 "width 100" 就印了两行）。
+     * 去重一下，顺便跳过被 high 截断后和前一行等价的宽度。 */
     int widths[] = {10, 100, 1000, n / 10};
+    int done[sizeof(widths) / sizeof(widths[0])];
+    size_t ndone = 0;
     for (size_t w = 0; w < sizeof(widths) / sizeof(widths[0]); w++) {
         int width = widths[w];
         if (width <= 0 || width > n) continue;
         int low = n / 2;
         int high = low + width;
         if (high >= n) high = n - 1;
+        int effective = high - low; /* 截断后的真实宽度 */
+        bool seen = false;
+        for (size_t d = 0; d < ndone; d++) if (done[d] == effective) { seen = true; break; }
+        if (seen) continue;
+        done[ndone++] = effective;
+
         long nodes_visited, keys_hit;
         range_query_count(&tree, low, high, &nodes_visited, &keys_hit);
         printf("range query [%d, %d] (width %d): visited %ld nodes, matched %ld keys\n",
-               low, high, high - low, nodes_visited, keys_hit);
+               low, high, effective, nodes_visited, keys_hit);
     }
 
     /* Delete benchmark: delete every key in a third random order. */

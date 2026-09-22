@@ -15,7 +15,7 @@
 | `demo.c` | 7 个分节演示，构造有代表性的图并打印执行过程 |
 | `tests.c` | 21 组测试用例 |
 | `buggy_cycle_demo.c` | ⚠️ **错误示例**：无向图环检测忘记排除父节点，会产生假阳性 |
-| `Makefile` | `make all` / `make test` / `make san` |
+| `Makefile` | `make all` / `make test` / `make run-buggy` / `make san` |
 
 ## 编译与运行
 
@@ -40,10 +40,12 @@ cc -std=c17 -Wall -Wextra -Wpedantic -Werror -O0 -g graph.c buggy_cycle_demo.c -
 或者直接：
 
 ```bash
-make all    # 编译 demo 和 tests
-make run    # 编译并运行 demo
-make test   # 编译并运行 tests
-make san    # 编译并运行 sanitizer 版本
+make all        # 编译 demo、tests 和 buggy_cycle_demo
+make run        # 编译并运行 demo
+make test       # 编译并运行 tests
+make run-buggy  # 编译并运行错误示例 buggy_cycle_demo
+make san        # 编译并运行三个程序的 sanitizer 版本
+make clean      # 删除上面所有产物（含 .dSYM 调试目录）
 ```
 
 所有命令均在本机（Darwin 27.0.0 arm64，Apple clang 21.0.0）实际执行，退出码全部为 `0`。
@@ -73,7 +75,11 @@ make san    # 编译并运行 sanitizer 版本
 
 邻接表：每个节点挂一条链表，只存真实存在的边，空间 O(V+E)。**代价**是查询"u 和 v 之间有没有边"要遍历链表，最坏 O(度数)。本章后面所有算法都用邻接表，因为图遍历天然是"给我这个节点的所有邻居"，链表正好是这个操作的最优结构。
 
-注意打印顺序：`graph_add_edge` 用头插法往邻接表插入新节点（`node->next = g->adj[u]; g->adj[u] = node`），所以同一个节点后加的边会排在前面——这是**实现细节**，不影响任何算法的正确性（BFS/DFS 只关心"访问了哪些邻居"，不关心访问顺序里谁先谁后由邻接表顺序决定，只要每个邻居都被访问到）。
+注意打印顺序：`graph_add_edge` 用头插法往邻接表插入新节点（`node->next = g->adj[u]; g->adj[u] = node`），所以同一个节点**后加的边会排在前面**。
+
+这一点要分清两件事：邻接表顺序**确实决定了访问顺序**（谁先谁后、`disc`/`fin` 具体是几、拓扑排序输出哪一个合法解），但它**不影响算法的正确性**（每个邻居都会被访问到，最短距离、连通分量、是否有环、是否二分图这些结论都不变）。所以本章所有"真实输出"里的具体序列都依赖头插法这个实现细节——换成尾插法，输出序列会变，但每条结论仍然成立。
+
+一个具体例子：下面第 3 节里递归 DFS 的访问顺序是 `[0,2,4,5,1,3]` 而不是 `[0,1,3,2,4,5]`，就是因为 `0→1` 先加、`0→2` 后加，头插之后 `adj[0]` 里 2 排在 1 前面。
 
 ## 2. BFS 最短路径
 
@@ -259,8 +265,10 @@ Kahn 算法的思路是"先穿不依赖任何东西的衣服"：
   [无向图] 简单路径 A-B-C (0-1-2)，只有 2 条边:
     has_cycle_undirected = false
     -> 如果照抄有向图的写法（忘记排除父节点），
-       DFS 从 1 走到 0 时会看到 0 的邻接表里有「回到 1」的边，
-       那其实就是刚刚走过来的边，误判成环就是本章重点错误
+       DFS 从 0 出发走 0 -> 1 -> 2，到 2 时检查 2 的邻接表，
+       会看到「2->1」这一项，而 1 正是刚刚走过来的父节点、
+       已经被标记成已访问——误判成环就是本章重点错误
+       （编译运行 buggy_cycle_demo.c 可以看到完整的假阳性过程）
   [无向图] 三角形 0-1-2-0 (真的有环):
     has_cycle_undirected = true
 ```
@@ -271,7 +279,7 @@ Kahn 算法的思路是"先穿不依赖任何东西的衣服"：
 
 ### 无向图：为什么不能直接照搬
 
-这是新手最容易犯的错误。原因在于**无向边在邻接表里存了两次**：`graph_add_edge(g, u, v)` 对无向图会同时往 u 的邻接表加 `u→v`，往 v 的邻接表加 `v→u`。DFS 从 u 走到 v 之后，检查 v 的邻接表，第一件事就会看到"回到 u"这一项——但那不是新发现的环，只是刚刚走过来的那条边的镜像。
+这是新手最容易犯的错误。原因在于**无向边在邻接表里存了两次**：`graph_add_edge(g, u, v)` 对无向图会同时往 u 的邻接表加 `u→v`，往 v 的邻接表加 `v→u`。DFS 从 u 走到 v 之后，检查 v 的邻接表，迟早会看到"回到 u"这一项（它具体排在第几个由头插顺序决定，不一定是第一个）——但那不是新发现的环，只是刚刚走过来的那条边的镜像。
 
 正确做法：记录"当前节点是从哪个父节点走过来的"，遇到已访问节点时，**只有它不是父节点**，才是真正的环。
 
@@ -300,17 +308,20 @@ cc -std=c17 -Wall -Wextra -Wpedantic -Werror -O0 -g graph.c buggy_cycle_demo.c -
 加边 graph_add_edge(g, u, v) 对无向图会同时生成两条邻接表项：
   u 的邻接表里加一条 u->v
   v 的邻接表里加一条 v->u
-DFS 从节点 1 走到节点 0（沿着 1->0 这条边）之后，
-检查 0 的邻接表时，会看到「0->1」这一项——
-这其实就是刚才走过来的那条边的另一半，不是新发现的环。
-错误实现只要看到「已访问」就报环，等价于把每一条边都当成了环。
+以用例 1（0-1-2）为例，DFS 从 0 出发，实际走的是 0 -> 1 -> 2。
+走到 2 之后检查 2 的邻接表，会看到「2->1」这一项——
+这其实就是刚才从 1 走过来那条边的另一半，不是新发现的环。
+错误实现只要看到「已访问」就报环，于是在这里假报了一个环。
+推广一下：只要图里存在任意一条边，DFS 往下走一层之后，
+在最深处那个节点上必然会看到「已访问的父节点」，所以这个
+错误实现对任何有边的图都会报环——它其实什么也没在检测。
 
 正确写法：记录 DFS 是从哪个父节点走过来的，
 遇到已访问节点时，只有当它不是父节点，才是真正的环。
 对比 algos.c 里的 has_cycle_undirected(const Graph *g)。
 ```
 
-**连一条简单的三节点路径都会被误判成有环**——这个错误实现会把**任意一条边**都当成环，因为任何一条边在无向图里都会形成"走过去再看回来"的假象。
+**连一条简单的三节点路径都会被误判成有环。** 而且这不是"运气不好"，是必然的：DFS 一路往下走，总会停在某个"所有邻居都已访问"的最深节点上，而它的父节点必然在这些已访问邻居里——错误实现看到已访问就报环，于是**只要图里有至少一条边，它就一定返回 true**。换句话说这个实现根本没有在检测环，它检测的是"图里有没有边"。
 
 用 sanitizer 编译这个错误示例（`cc ... -fsanitize=address,undefined ... buggy_cycle_demo.c -o buggy_cycle_demo_san && ./buggy_cycle_demo_san`），程序**依然正常退出（exit=0），sanitizer 不会报任何错**——因为这不是内存安全问题，是纯粹的逻辑错误，指针访问、内存分配全都合法，只是"判断逻辑"错了。这提醒我们：**sanitizer 能抓内存 bug，抓不到算法逻辑 bug**，逻辑正确性必须靠性质验证（比如本实验对照"手算的正确答案"）和多组测试用例来保证。
 
@@ -396,13 +407,15 @@ cc -std=c17 -Wall -Wextra -Wpedantic -Werror -O0 -g -fsanitize=address,undefined
 
 ```text
 $ MallocStackLogging=1 leaks --atExit -- ./demo
-Process 36872: 189 nodes malloced for 16 KB
-Process 36872: 0 leaks for 0 total leaked bytes.
+Process 99038: 189 nodes malloced for 31 KB
+Process 99038: 0 leaks for 0 total leaked bytes.
 
 $ MallocStackLogging=1 leaks --atExit -- ./tests
-Process 37159: 189 nodes malloced for 16 KB
-Process 37159: 0 leaks for 0 total leaked bytes.
+Process 99085: 189 nodes malloced for 31 KB
+Process 99085: 0 leaks for 0 total leaked bytes.
 ```
+
+这里唯一值得看的是 **`0 leaks`** 那一行。前一行的 "189 nodes malloced" 很容易被误读成"本程序一共分配了 189 块内存"——它不是。`--atExit` 是在 `exit()` 之后才拍快照的，那时程序自己的内存已经全部 `free` 完了，剩下的 189 块是 C 运行时（stdio 缓冲区、dyld、locale 等）自己还占着的。所以这个数字跟程序规模无关：`./demo`、`./tests`（里面建了 200 节点和 150 节点的随机图）、甚至 `./buggy_cycle_demo` 报的都是同一个 189 nodes / 31 KB。想看"程序自己分配了多少"要用别的工具（比如 `heap` 或 ASan 的 `allocator_may_return_null` 统计），不要从这一行推断。
 
 `graph_destroy` 会遍历每个节点的邻接链表逐一 `free`，`bfs_free`/`dfs_free` 释放各自的结果数组——这两处是本实验里最容易漏 `free` 的地方（图有 n 个邻接链表，销毁时必须每条链表都走一遍，不能只 `free(g->adj)` 了事，那样只释放了指针数组本身，链表节点全部泄漏）。
 

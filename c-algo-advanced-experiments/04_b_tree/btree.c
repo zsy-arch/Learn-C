@@ -89,7 +89,11 @@ static void split_child(BTreeNode *x, int i, int t) {
 }
 
 /* Insert into a subtree rooted at x that is guaranteed to be non-full.
- * Returns false without modifying anything if key already exists. */
+ *
+ * 前置条件：调用方（btree_insert）已经确认 key 不在树里。下面两处
+ * `key == ...` 的判断因此永远不会命中，保留它们纯粹是"多一道防线"，
+ * **不能**当成"本函数自己保证了重复键不改结构"——它保证不了，原因见
+ * btree_insert 里的长注释：第二处判断发生在 split_child **之后**。 */
 static bool insert_nonfull(BTreeNode *x, int key, int t) {
     int i = 0;
     while (i < x->n && key > x->keys[i]) i++;
@@ -104,6 +108,8 @@ static bool insert_nonfull(BTreeNode *x, int key, int t) {
 
     if (x->children[i]->n == 2 * t - 1) {
         split_child(x, i, t);
+        /* 注意顺序：分裂已经发生了，这一行才开始比较。如果没有上层的
+         * 预先查找，走到这里返回 false 的话，树已经被改过了。 */
         if (key == x->keys[i]) return false; /* the key that moved up */
         if (key > x->keys[i]) i++;
     }
@@ -119,27 +125,58 @@ bool btree_insert(BTree *tree, int key) {
         return true;
     }
 
-    if (tree->root->n == 2 * t - 1) {
-        /* 抢先分裂 root 之前必须先确认 key 不是重复的。
-         *
-         * insert_nonfull 对重复键是很小心的：它在动手之前先比较
-         * （上面第一处 `key == x->keys[i]` 就返回 false），分裂孩子之后
-         * 还要再查一次"被提上来的那个 key 是不是它"。但 root 这一层的
-         * 抢先分裂发生在**任何**重复检查之前，于是往一棵 root 已满的树
-         * 里插一个已存在的 key，会走成这样：先无条件新建 root、分裂旧
-         * root（节点数 1 -> 3，树高 0 -> 1），然后 insert_nonfull 才发现
-         * 重复、返回 false。
-         *
-         * 返回值是对的，树也仍然是一棵合法 B 树（所以 btree_verify 一点
-         * 问题都查不出来），但 insert 的契约是"重复键返回 false 且**不做
-         * 任何修改**"，这里已经改了结构。这类 bug 特别难查：调用方看到
-         * false 会认为"什么都没发生"，而实际上树已经凭空长高了一层，之
-         * 后每次 search/insert/delete 都多走一层。
-         *
-         * 代价只有在 root 恰好满的时候多一次 O(log n) 下降，相对于紧接着
-         * 要做的分裂本身可以忽略。 */
-        if (btree_search(tree, key)) return false;
+    /* 动手之前先查一遍：key 已存在就直接返回，一个字节都不碰。
+     *
+     * 这一行是"主动分裂"策略的必要代价，理由值得写清楚，因为它正是
+     * 本模块修掉的一个缺陷（而且第一版只修了一半）。
+     *
+     * insert 的契约（btree.h 顶部）是"重复键返回 false 且**不做任何
+     * 修改**"。但主动分裂的顺序天然和这条契约冲突：**先分裂，再比较**。
+     * 于是任何"边下降边判重"的写法都会在某条路径上先改结构、后发现重复。
+     * 两处都会中招：
+     *
+     *   (1) root 这一层：root 满时无条件新建 root + 分裂旧 root，
+     *       再交给 insert_nonfull 去发现重复。节点数 1 -> 3，树高 0 -> 1。
+     *
+     *   (2) 下降路径上任意一层：insert_nonfull 发现"即将进入的孩子满了"
+     *       就先 split_child，分裂之后才比较被提上去的那个 key。
+     *       t=2、树形 root=[20]、孩子 [10] 和 [30 40 50]，插已存在的 40：
+     *         分裂后 -> root=[20 40]，孩子 [10] [30] [50]（节点数 3 -> 4）
+     *         然后 `key == x->keys[i]` 命中，返回 false。
+     *       插 30 或 50 同样会先触发这次分裂，只是重复是在更深一层发现的。
+     *
+     * 第一版只在 (1) 处加了 `btree_search`，(2) 一直漏着——因为三个
+     * test_dup_insert_* 回归用例构造的树 root 全是满的，每次都被 (1) 的
+     * 检查挡住了，(2) 那条路径根本没被走到。现在把检查提到最前面，两条
+     * 路径一起覆盖，`test_dup_insert_into_full_child_is_noop` 专门钉 (2)。
+     *
+     * 为什么这类 bug 特别难查：返回值是对的，分裂出来的树也**仍然是一棵
+     * 合法 B 树**，所以 btree_verify 一个字都不会说（它检查"合法性"，不
+     * 检查"有没有改"）。调用方看到 false 会认为"什么都没发生"，而实际上
+     * 树的形状已经变了。回归测试因此不能靠 verify，只能比较结构指纹。
+     *
+     * 代价：每次插入多一次 O(log_t n) 的下降，和紧接着那次真正的插入下降
+     * 同阶。A/B 实测（-O2，10 万随机 key，两个版本交替各跑 3 轮取稳定值，
+     * 丢掉第一轮冷 cache 的离群点）：
+     *   t=2  0.137 -> 0.210 us/op  (x1.53)  树高 12
+     *   t=8  0.060 -> 0.099 us/op  (x1.64)  树高 4
+     *   t=64 0.056 -> 0.097 us/op  (x1.73)  树高 2
+     * 注意涨幅的方向和直觉相反：树最高的 t=2 涨得最少，树最矮的 t=64
+     * 涨得最多。原因是这次预查找走的正是紧接着插入要走的同一条路径，
+     * 节点都还在 cache 里，省掉的是访存、省不掉的是节点内那趟线性
+     * 比较——而线性比较的长度正比于 t（t=64 的节点最多 127 个 key）。
+     * t=2 那边真正的耗时大头是分裂时的 memmove 和 malloc，预查找不碰
+     * 这部分，所以被摊薄了。
+     *
+     * 这是一个明确的取舍：用"每次插入多一次查找"换"契约无条件成立"。
+     * 选后者的理由是，契约被破坏时的表现是静默的结构漂移——调用方看到
+     * false 以为什么都没发生，btree_verify 也查不出来（树依然合法）；
+     * 而慢 1.5~1.7 倍是可测量、可预期的。若某个场景确实在意这点开销，
+     * 正确的做法是改接口（比如让 insert 返回"是否已存在"并允许结构
+     * 变化），而不是留一条静默违约的路径。 */
+    if (btree_search(tree, key)) return false;
 
+    if (tree->root->n == 2 * t - 1) {
         BTreeNode *new_root = node_create(t, false);
         new_root->children[0] = tree->root;
         tree->root = new_root;
@@ -347,8 +384,10 @@ static void verify_rec(const BTreeNode *x, int t, bool is_root, int depth,
      * root 是叶子时 0 个 key 是合法的——那就是空树。但 root 是**内部
      * 节点**时至少要有 1 个 key：内部节点有 n+1 个孩子，0 个 key 意味着
      * 只剩 1 个孩子，而这种形状恰恰是"应该已经被 root 收缩掉"的状态
-     * （btree_delete 里那段 `if (root->n == 0 && !root->is_leaf)` 就是
-     * 专门做这件事的）。原来写成 `is_root ? 0 : t - 1`，于是一棵忘记收缩
+     * （btree_delete 末尾那段 `if (tree->root->n == 0) { ... = old_root->
+     * is_leaf ? NULL : old_root->children[0]; }` 就是专门做这件事的：
+     * 叶子 root 清空了就变 NULL，内部 root 清空了就让唯一的孩子顶上）。
+     * 原来写成 `is_root ? 0 : t - 1`，于是一棵忘记收缩
      * 的树——root 有 0 个 key、挂着 1 个孩子、白白多出一层高度——能完整
      * 通过校验。这正是校验器最不该放过的那类问题：树还能正常 search，
      * 只是永久多背了一层，而且这一层会在后续每次插入/删除里继续传播。 */

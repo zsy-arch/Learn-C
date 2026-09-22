@@ -1,17 +1,76 @@
 # 编译产物：本项目的教学代码全是"随手编译随手跑"，可执行文件不应该进 git。
 #
-# 这里大多数 demo 编译产物直接是"源文件名去掉 .c"（比如
-# c-experiments/05_pointer/p01_basics.c -> p01_basics），没有固定后缀、
-# 没有扩展名。项目里所有真正的源码/文档都带扩展名（.c/.h/.md/.sh/.log/.s/.i），
-# 唯一的例外是 Makefile。所以规则是：先精确忽略已知的编译产物目录/后缀，
-# 再把"没有扩展名的文件"整体忽略、最后显式放行 Makefile。
+# 历史教训：这里曾经用过一条"把没有扩展名的文件全部忽略"的规则
+#
+#     *
+#     !*.*
+#     !Makefile
+#
+# 它看起来聪明，实际有两个后果：
+#   1. `*` 同样匹配**目录**。git 一旦忽略某个目录就不再往里看，
+#      所以 `!*.*` 这种"放行带扩展名的文件"的否定规则根本没机会生效——
+#      整个 c-experiments/ c-algo-experiments/ c-algo-advanced-experiments/
+#      在 VSCode 侧边栏里直接消失（`explorer.excludeGitIgnore` 开启时）。
+#   2. 它是靠"文件名里有没有点"来猜文件类型的，猜错了没有任何提示。
+#
+# 现在改成**精确匹配**：按目录 + 已知产物名 + 后缀列举，不做"没有扩展名就忽略"
+# 这种猜测。代价是加新模块时要顺手补一行，换来的是规则可读、可审计、
+# 不会静默吞掉目录。
 
-# 调试符号包、对象文件、build 目录（Makefile 生成）、依赖文件
-*.dSYM/
+# ---- 通用：对象文件、依赖文件 ----
+# 注意：目录型规则（*.dSYM/ 和 build/）不能放在这里，必须放到下面 `!*/`
+# 之后——`!*/` 会把**所有**目录重新放行，而 gitignore 里后出现的规则优先，
+# 写在前面会被它抵消掉。实测过：把 build/ 放在 `!*/` 前面，
+# c-experiments/10_project/build/demo 就不再被忽略。
 *.o
 *.d
+
+# ---- 进阶算法模块（c-algo-advanced-experiments/）----
+# 产物名由各模块 Makefile 固定给出：demo / tests / demo_san / tests_san
+# / perf / perf_san，另有 02 的 buggy_cycle_demo（README 里手工编译）。
+# 限定在"模块目录下的一级文件"，不会误伤同名目录。
+c-algo-advanced-experiments/*/demo
+c-algo-advanced-experiments/*/tests
+c-algo-advanced-experiments/*/perf
+c-algo-advanced-experiments/*/demo_san
+c-algo-advanced-experiments/*/tests_san
+c-algo-advanced-experiments/*/perf_san
+c-algo-advanced-experiments/*/buggy_cycle_demo
+
+# 运行输出。注意 04_b_tree/perf_out.txt 是 README 明确引用的交付物
+# （"完整输出见 perf_out.txt"），必须保留，所以只忽略未被引用的那个。
+c-algo-advanced-experiments/06_red_black_tree/demo_out.txt
+
+# ---- 基础模块（c-experiments/ 和 c-algo-experiments/）----
+# 这两个目录的产物名由 run_all.sh 从**源文件名**推导，没有固定清单：
+#   c-experiments:      bin="$src"（strict/warn）或 "${src}_san"
+#   c-algo-experiments: bin="${stem}_${mode}"
+# 也就是说 strict 模式下产物就叫 p01_basics 这种裸名字，无法枚举。
+# 所以这两个目录**只能**用"无扩展名即忽略"的办法兜底，但必须配 `!*/`
+# 放行目录，否则就会重犯开头说的那个错误。
+c-experiments/*/*
+c-algo-experiments/*/*
+!*/
+!c-experiments/*/*.*
+!c-algo-experiments/*/*.*
+!c-experiments/*/Makefile
+!c-algo-experiments/*/Makefile
+
+# run_all.sh 的一次性产物（固定名字，列出来更清楚）
+c-algo-experiments/*/leak_demo_probe
+c-algo-experiments/*/demo_O0
+c-algo-experiments/*/demo_O2
+c-algo-experiments/*/bench_O0
+c-algo-experiments/*/bench_O2
+
+# ---- 目录型规则：必须在 `!*/` 之后 ----
+# 见文件开头的说明。这两条放在这里才真正生效。
+*.dSYM/
 build/
 
-# macOS / 编辑器杂项
+# ---- 编辑器 / 系统杂项 ----
 .DS_Store
 *.swp
+
+# VSCode Local History 扩展的自动快照，不是项目内容
+.history/

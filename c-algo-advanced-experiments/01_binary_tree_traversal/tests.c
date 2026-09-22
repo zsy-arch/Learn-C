@@ -245,6 +245,7 @@ static Node *bst_insert(Node *root, int value) {
 static Node *build_random_tree(int count, unsigned long seed) {
     rng_seed(seed);
     int *values = malloc(sizeof(int) * (size_t)count);
+    if (values == NULL) { fprintf(stderr, "malloc failed\n"); exit(1); }
     for (int i = 0; i < count; i++) values[i] = i;
     /* Fisher-Yates 打乱插入顺序，让树形状不可预测 */
     for (int i = count - 1; i > 0; i--) {
@@ -436,6 +437,7 @@ static void test_large_tree_morris(void) {
 
     int *rec_in = malloc(sizeof(int) * (size_t)count);
     int *morris = malloc(sizeof(int) * (size_t)count);
+    if (rec_in == NULL || morris == NULL) { fprintf(stderr, "malloc failed\n"); exit(1); }
     int n;
 
     n = 0; inorder_recursive(root, rec_in, &n);

@@ -203,12 +203,20 @@ static bool wordlist_equals_sorted(WordList *list, const char **expected, size_t
         return false;
     }
     char **got = malloc(list->count * sizeof *got);
+    char **exp_copy = malloc(expected_n * sizeof *exp_copy);
+    if (got == NULL || exp_copy == NULL) {
+        /* 比较函数自己分配了内存就得自己检查。这里两块一起判，失败就一起
+         * 放掉：free(NULL) 是合法的空操作，所以不用区分是哪一块失败了。 */
+        fprintf(stderr, "wordlist_equals_sorted: out of memory\n");
+        free(got);
+        free(exp_copy);
+        exit(1);
+    }
     for (size_t i = 0; i < list->count; i++) {
         got[i] = list->words[i];
     }
     qsort(got, list->count, sizeof *got, str_cmp_qsort);
 
-    char **exp_copy = malloc(expected_n * sizeof *exp_copy);
     for (size_t i = 0; i < expected_n; i++) {
         exp_copy[i] = (char *)expected[i];
     }
@@ -273,8 +281,25 @@ static bool test_invalid_inputs_rejected(void) {
 #define RANDOM_WORD_MAXLEN 8
 
 static void gen_random_word(char *buf, unsigned *state) {
-    /* 简单线性同余生成器，固定种子保证可重现，不依赖 rand() 的实现细节 */
-    int len = 3 + (int)(*state % (RANDOM_WORD_MAXLEN - 2));
+    /* 简单线性同余生成器，固定种子保证可重现，不依赖 rand() 的实现细节。
+     *
+     * 两处细节都是必要的，不是随手写的：
+     *
+     * 1. 先 advance 再取 len。原来是直接用**进入函数时**的 *state 取模算长度，
+     *    而这个 LCG 的乘数和增量都是奇数，所以 state 的奇偶性每走一步就翻转一次。
+     *    于是长度和奇偶性锁死成了一个自洽的循环：state 为奇 -> len 取到偶数
+     *    -> 走偶数步 -> state 还是奇 -> 永远只能取到偶数长度。实测 5000 个词里
+     *    长度 5 和 7 **一次都没出现过**（直方图只有 4/6/8，外加种子 42 是偶数
+     *    带来的唯一一个长度 3）。测试看起来跑了 5000 个样本，实际只覆盖了一半的长度。
+     *
+     * 2. 取高位而不是低位。LCG 的低位周期极短（最低位周期是 2），拿 *state % 6
+     *    这种低位运算当随机数是经典陷阱；和下面生成字符时一样先右移 16 位，
+     *    用高位才有意义。
+     *
+     * 修正后长度 3~8 分布均匀（约各 800 个），而且"同一个单词同时出现在偶数和
+     * 奇数下标"这个下面要考的关键场景反而更密集了（6 个 -> 32 个）。 */
+    *state = (*state) * 1103515245u + 12345u;
+    int len = 3 + (int)((*state >> 16) % (RANDOM_WORD_MAXLEN - 2));
     for (int i = 0; i < len; i++) {
         *state = (*state) * 1103515245u + 12345u;
         buf[i] = (char)('a' + (*state >> 16) % 26);
@@ -287,8 +312,16 @@ static bool test_large_random_insert_delete(void) {
     unsigned state = 42; /* 固定种子 */
 
     char **words = malloc(RANDOM_WORD_COUNT * sizeof *words);
+    if (words == NULL) {
+        fprintf(stderr, "test_large_random_insert_delete: out of memory\n");
+        exit(1);
+    }
     for (int i = 0; i < RANDOM_WORD_COUNT; i++) {
         words[i] = malloc(RANDOM_WORD_MAXLEN + 1);
+        if (words[i] == NULL) {
+            fprintf(stderr, "test_large_random_insert_delete: out of memory\n");
+            exit(1);
+        }
         gen_random_word(words[i], &state);
         trie_insert(root, words[i]);
     }

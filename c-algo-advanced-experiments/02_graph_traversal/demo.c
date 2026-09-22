@@ -198,8 +198,10 @@ static void section6_cycle(void)
     graph_add_edge(gu1, 1, 2);
     printf("    has_cycle_undirected = %s\n", has_cycle_undirected(gu1) ? "true" : "false");
     printf("    -> 如果照抄有向图的写法（忘记排除父节点），\n");
-    printf("       DFS 从 1 走到 0 时会看到 0 的邻接表里有「回到 1」的边，\n");
-    printf("       那其实就是刚刚走过来的边，误判成环就是本章重点错误\n");
+    printf("       DFS 从 0 出发走 0 -> 1 -> 2，到 2 时检查 2 的邻接表，\n");
+    printf("       会看到「2->1」这一项，而 1 正是刚刚走过来的父节点、\n");
+    printf("       已经被标记成已访问——误判成环就是本章重点错误\n");
+    printf("       （编译运行 buggy_cycle_demo.c 可以看到完整的假阳性过程）\n");
     graph_destroy(gu1);
 
     printf("  [无向图] 三角形 0-1-2-0 (真的有环):\n");

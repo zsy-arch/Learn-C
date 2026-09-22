@@ -32,3 +32,4 @@ san: demo_san tests_san
 
 clean:
 	rm -f demo tests demo_san tests_san *.o *.txt
+	rm -rf *.dSYM

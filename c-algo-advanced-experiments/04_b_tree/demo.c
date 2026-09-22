@@ -25,20 +25,85 @@ static void section(const char *title) {
     printf("\n========== %s ==========\n", title);
 }
 
+static void print_keys_inline(const BTreeNode *x) {
+    printf("[");
+    for (int i = 0; i < x->n; i++) printf("%d%s", x->keys[i], i + 1 < x->n ? " " : "");
+    printf("]");
+}
+
+typedef struct {
+    int depth;
+    const BTreeNode *node;
+} SplitSite;
+
+/* 预测一次插入会在哪些位置触发分裂。
+ *
+ * 主动分裂的规则是"下降时遇到满节点就先分裂它"，所以只要照着
+ * btree_insert/insert_nonfull 的下降逻辑走一遍、把沿路的满节点记下来就行。
+ * 这个预测在**插入前**的树上做是准确的：分裂只会给路径上的节点换个父亲，
+ * 不会让路径改道——被提上去的那个 key 决定往左半还是右半走，而左右两半
+ * 正是原来那个节点的两截，再往下仍然是同一串节点对象。
+ *
+ * 为什么需要它：这里原来只判了一句"root 满不满"，于是插 60 时真正发生的
+ * 事——第 1 层的孩子 [30 40 50] 满了、分裂了一次——一个字都没提，输出里
+ * 节点数从 3 悄悄变成 4，读者只能自己猜。 */
+static int predict_splits(const BTree *tree, int key, SplitSite *out, int cap) {
+    int count = 0;
+    const BTreeNode *x = tree->root;
+    for (int depth = 0; x != NULL; depth++) {
+        if (x->n == 2 * tree->t - 1) {
+            if (count < cap) { out[count].depth = depth; out[count].node = x; }
+            count++;
+        }
+        if (x->is_leaf) break;
+        int i = 0;
+        while (i < x->n && key > x->keys[i]) i++;
+        x = x->children[i];
+    }
+    return count;
+}
+
 int main(void) {
     /* ---- 1. build with t=2, watch a root split happen ---- */
     section("1. 插入触发节点分裂 (t=2)");
     {
         BTree t = btree_create(2);
         int seq[] = {10, 20, 30, 40, 50, 60, 70};
+        int total_splits = 0;
         for (size_t i = 0; i < sizeof seq / sizeof seq[0]; i++) {
-            bool grew = (t.root != NULL) && (t.root->n == 2 * t.t - 1);
-            printf("插入 %d%s\n", seq[i], grew ? "  <-- 这一次插入前 root 已满，会触发分裂" : "");
+            SplitSite sites[8];
+            int nsplit = (t.root == NULL) ? 0
+                       : predict_splits(&t, seq[i], sites, (int)(sizeof sites / sizeof sites[0]));
+            int nodes_before = btree_count_nodes(&t);
+
+            printf("插入 %d", seq[i]);
+            for (int s = 0; s < nsplit; s++) {
+                if (sites[s].depth == 0) {
+                    printf("%s  <-- 插入前 root 已满（n=2t-1=%d），会先分裂它：",
+                           s ? "\n      " : "", 2 * t.t - 1);
+                } else {
+                    printf("%s  <-- 插入前第 %d 层的孩子已满（n=2t-1=%d），会先分裂它：",
+                           s ? "\n      " : "", sites[s].depth, 2 * t.t - 1);
+                }
+                print_keys_inline(sites[s].node);
+            }
+            printf("\n");
+
             btree_insert(&t, seq[i]);
+            total_splits += nsplit;
             btree_print(&t);
+            int nodes_after = btree_count_nodes(&t);
+            if (nsplit > 0) {
+                /* 一次普通分裂 +1 个节点；root 分裂额外再 +1（新 root）。 */
+                printf("  节点数 %d -> %d（%d 次分裂）\n", nodes_before, nodes_after, nsplit);
+            }
             verify_or_die(&t, "insert");
         }
-        printf("最终 height=%d, node 数=%d\n", btree_height(&t), btree_count_nodes(&t));
+        printf("最终 height=%d, node 数=%d，一共分裂了 %d 次\n",
+               btree_height(&t), btree_count_nodes(&t), total_splits);
+        printf("注意分裂发生的位置：插 40 时满的是 root（树因此长高一层），\n"
+               "插 60 时满的是第 1 层的孩子 [30 40 50]（树高不变，只是多一个兄弟）。\n"
+               "只盯着 root 看会漏掉后者——它不改树高，只让节点数悄悄 +1。\n");
         btree_destroy(&t);
     }
 

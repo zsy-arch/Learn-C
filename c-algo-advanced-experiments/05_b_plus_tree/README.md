@@ -142,6 +142,8 @@ root 的路由 key 是 30——它是从原来叶子 `[10 20 30]` 分裂时**复
 
 **借位（borrow）**：继续删除 120、再删除 110（第 6 节）。删 120 后叶子变成 `[110]`，正好落在下限，还不算下溢；再删 110 时该叶子变空，真正下溢，于是向左邻居 `[90 100]` 借一个 key（`[90 100]` 有 2 个 key，超过下限 1，是合法的出借方）：
 
+下面这段是**从完整输出里截出来的子树片段**（不是整棵树）：借位发生在 root `[50]` 的右子树里，root 那一行和它的左子树 `[30]`（下挂 `[10,20]`、`[30,40]` 两个叶子）这次操作完全没变，为了聚焦在发生借位的那一层，这里把它们省掉了，缩进也相应左移了两格。最后那行 `leaf chain` 是**整棵树**的完整链表（所以它会包含被省略的 `[30]` 子树下那两个叶子），不是这个片段自己的链表：
+
 ```
 [70 90 100]
   [50:5000 60:6000] (leaf)
@@ -173,7 +175,8 @@ parent 的路由 key 从 110 变成了 100（新右子树最小值 100 的复制
 删除 42：叶子 [40] 变空并与邻居合并，导致它的父节点 [42]（一个
 internal 节点）只剩 1 个孩子、0 个 routing key，下溢。它跟兄弟 [24]
 合并：root 的 routing key 32（分隔 [24] 子树和 [40] 子树的那个 key）
-被“拉下来”塞进合并后的节点，因为它是唯一还在区分两边孙子层的东西。
+被“拉下来”塞进合并后的节点，因为它是唯一还在区分两边孙子层的东西——
+跟第 7 步的 leaf 合并（直接丢弃分隔 key）正好相反。
 ```
 
 合并前 root 是 `[16 32]`，合并后变成 `[16]`（root 从 2 个 routing key 减到 1 个，但还没到"只剩 1 个孩子"的收缩条件）。为什么内部节点合并必须拉下分隔 key，而叶子合并可以直接丢弃？因为叶子的路由 key 在祖先节点里永远只是一份**多余的**副本（真实数据仍在叶子里，丢了副本不影响任何数据完整性），但两个内部节点之间的分隔 key 是**唯一**用来区分"哪些孙子属于左边、哪些属于右边"的信息——合并之后如果丢掉它，两侧孙子的路由信息就会丢失一层，树就不再满足"routing key 是子树下界"这条不变量了。这一步的合并逻辑跟 B 树的内部节点合并完全一致，B+ 树和 B 树在这里没有差异，差异只发生在叶子层。
@@ -247,20 +250,20 @@ if (idx < parent->n) {
 
 ```
 $ ./tests_buggy
-bplustree_buggy.c:87:16: runtime error: member access within misaligned address 0xbebebebebebebebe for type 'BPlusNode' (aka 'struct BPlusNode'), which requires 8 byte alignment
+bplustree_buggy.c:104:16: runtime error: member access within misaligned address 0xbebebebebebebebe for type 'BPlusNode' (aka 'struct BPlusNode'), which requires 8 byte alignment
 ...
 AddressSanitizer:DEADLYSIGNAL
-==31027==ERROR: AddressSanitizer: SEGV on unknown address 0x5857d7d9d7d7
-    #0 find_leaf_path bplustree_buggy.c:87
-    #1 bplustree_insert bplustree_buggy.c:160
+==31379==ERROR: AddressSanitizer: SEGV on unknown address 0x5857d7d9d7d7
+    #0 find_leaf_path bplustree_buggy.c:104
+    #1 bplustree_insert bplustree_buggy.c:177
     #2 test_leaf_borrow_from_left_sibling tests.c:167
-    #3 main tests.c:509
-SUMMARY: AddressSanitizer: SEGV bplustree_buggy.c:87 in find_leaf_path
-==31027==ABORTING
+    #3 main tests.c:540
+SUMMARY: AddressSanitizer: SEGV bplustree_buggy.c:104 in find_leaf_path
+==31379==ABORTING
 ========== B+ 树测试套件 ==========
 [PASS] test_empty_tree_search_and_delete
 [PASS] test_single_key_insert_delete
-[PASS] test_duplicate_insert_updates_value
+[PASS] test_duplicate_insert_rejected
 [PASS] test_delete_nonexistent_is_noop
   bplustree_verify failed after sequential insert: keys not strictly increasing at index 0: 7 >= -1094795586
   FAILED CHECK: verify_ok(&t, "sequential insert") (tests.c:101)
@@ -323,7 +326,7 @@ $ ./tests
 ========== B+ 树测试套件 ==========
 [PASS] test_empty_tree_search_and_delete
 [PASS] test_single_key_insert_delete
-[PASS] test_duplicate_insert_updates_value
+[PASS] test_duplicate_insert_rejected
 [PASS] test_delete_nonexistent_is_noop
 [PASS] test_degree_t2_sequential
 [PASS] test_degree_t3_sequential
@@ -340,6 +343,7 @@ $ ./tests
 [PASS] test_leaf_chain_matches_sorted_keys
 [PASS] test_range_query_edge_cases
 [PASS] test_range_query_low_greater_than_high
+[PASS] test_range_query_respects_cap
 [PASS] test_large_sequential_then_reverse_delete
 [PASS] test_random_stress_t2_1000
 [PASS] test_random_stress_t3_1000
@@ -347,7 +351,7 @@ $ ./tests
 [PASS] test_random_stress_t10_2000
 
 ========== 汇总 ==========
-通过: 24, 失败: 0, 总计: 24
+通过: 25, 失败: 0, 总计: 25
 ```
 
 用 `make san`（`-fsanitize=address,undefined -fno-omit-frame-pointer`）重新构建 `demo`/`tests` 并运行，二者的输出跟非 sanitizer 版本逐字节相同（`diff` 无输出），退出码都是 0——说明这些操作在 ASan/UBSan 的视角下没有任何越界访问、use-after-free、未初始化读取或未定义行为，而且执行路径是完全确定的（sanitizer 不会改变任何分支走向）。
@@ -403,6 +407,8 @@ insert 100000 keys: 0.0084s, delete 100000 keys: 0.0095s, final keys=0 (expect 0
 三个结论都能从这份真实数据里直接读出来：
 
 先看一眼 `keys=` 这一列：在每个 `n` 上，4 个 `t` 值的 `keys` 完全相同（999 / 9974 / 97559 / 442156）。这不是巧合，而是这张表能不能拿来横向比较的前提——`perf.c` 里的随机种子只跟 `n` 有关（`xs_state = 12345u + (uint32_t)n`），所以同一个 `n` 下的 4 个 cell 插入的是**同一串** key，唯一的变量就是 `t`。早先的版本里种子还带上了 `t_deg`（`12345 + n + t_deg * 7919`），于是 4 个 cell 拿到 4 串不同的随机键，`keys` 那一列也跟着是 4 个不同的数字（比如 `n=100000` 那一行曾经是 97464 / 97564 / 97533 / 97515）——测出来的时间差里混进了"输入根本不是同一批"这个额外变量。这类噪声在 `n` 很大时统计上很小，但它是零成本就能消掉的，没有理由留在一张专门用来做受控比较的表里。
+
+**这张表哪几行能当数据用、哪几行不能（关于精度的诚实说明）**：`ops/ms` 那一列印了两位小数，但它的**有效精度随 `n` 剧烈变化**，不能一视同仁地当成测量值来读。`perf.c` 用的是 `clock()`，吞吐量由未经取整的 `secs` 算出（`inserted / (secs * 1000.0)`），而 `n=1000` 那四行的耗时只有几十微秒——`time=0.0000s` 这种显示不是"快到没花时间"，是这个耗时在 4 位小数下压根显示不出来（比如 `24975.00 ops/ms` 反解出的耗时是 40 微秒）。在这种量级上，计时器粒度、CPU 频率爬升、缓存冷热、以及机器上其他进程的干扰，每一项都足以盖过 `t` 本身的影响。把同一个二进制连续跑 5 遍实测的离散程度是：`n=1000 t=2` 在 5230 ~ 12974 ops/ms 之间来回跳（约 2.5 倍），`n=10000 t=2` 在 5465 ~ 10924 之间跳；而 `n=500000 t=2` 五次分别是 4696 / 4821 / 4570 / 5133 / 4827，落在 ±6% 以内。**结论：只有 `n=100000` 和 `n=500000` 这两组的吞吐量数字稳定到可以做横向比较，`n=1000` / `n=10000` 两组只能用来看趋势方向，它们的具体数值在下一次运行时几乎必然不同**（这也是为什么下面的结论 1 特意只引用 `n=500000` 那一行的数字）。相比之下，同一张表里 `height` / `keys` / `total_leaves` / `found` / `visited_leaves` 这些**计数类**列是完全确定的，跟机器状态和运行次数无关，每次重跑都逐字节一致——所以结论 2（range query 的叶子访问数）站在计数上，比任何基于计时的结论都更硬。
 
 1. **`t` 越大，插入越快、树越矮**：同样 `n=500000`，`t=2` 的树高是 11、插入吞吐约 4759 ops/ms；`t=16` 的树高只有 4、插入吞吐约 11803 ops/ms——`t` 每翻倍，单节点能容纳的 key 更多，树高显著降低（对数底数变大），每次插入需要下降/分裂的层数变少，吞吐随之提升约 2.5 倍。这也解释了为什么真实数据库的 B+ 树节点大小通常按磁盘页（4KB/8KB/16KB）来定，尽量让 `t` 大到能把树高压缩到 3~4 层——树高就是磁盘 I/O 次数的量级。
 2. **range query 访问的叶子数只跟结果集宽度相关，跟树的总大小无关**：固定 `range_width=1000` 这一档，`n` 从 1000 一路涨到 500000（相差 500 倍），`visited_leaves` 始终稳定在 126 左右（1000 时 126，10000 时 126，100000 时 126，500000 时 126）——树越大，这 126 个叶子占全部叶子的比例从 50.4% 一路降到 0.1%，但绝对访问数量完全不随树的总规模变化。这正是"数据库用 B+ 树做范围查询"这句话背后真实的复杂度证据：range query 的代价是 `O(定位一次 log 高度 + 结果集大小)`，而不是 `O(树的总大小)`。

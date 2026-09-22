@@ -107,7 +107,11 @@ static inline bool trie_starts_with(TrieNode *root, const char *prefix) {
         return false;
     }
     if (prefix == NULL || prefix[0] == '\0') {
-        return true; /* 空前缀匹配一切非空 Trie */
+        /* 空前缀匹配任何 Trie——包括一个单词都没插入的空 Trie。
+         * 这里判的是"root 指针非 NULL"，不是"树里有单词"：空串是每个字符串的
+         * 前缀，也包括零个字符串组成的集合，所以恒真是符合定义的。
+         * tests.c 的 test_empty_trie 就把这条断言钉住了。 */
+        return true;
     }
     return trie_find_node(root, prefix) != NULL;
 }

@@ -138,8 +138,10 @@ static void test_undirected_no_cycle_simple_path(void)
 {
     TEST_BEGIN();
     /* A-B-C 简单路径：0-1-2，只有 2 条边，绝对没有环。
-     * 如果实现忘记排除父节点，DFS 从 1 走到 0 后，会在 0 的邻接表
-     * 里看到"回到 1"的边，误判为环——这个测试就是专门防这个 bug。 */
+     * 如果实现忘记排除父节点，DFS 从 0 出发走 0 -> 1 -> 2，到 2 时会在
+     * 2 的邻接表里看到"回到 1"的边（1 正是刚走过来的父节点，已标记为
+     * 已访问），于是误判为环——这个测试就是专门防这个 bug。
+     * 对照 buggy_cycle_demo.c，那里保留了这个错误实现。 */
     Graph *g = graph_create(3, false);
     graph_add_edge(g, 0, 1);
     graph_add_edge(g, 1, 2);
@@ -390,9 +392,16 @@ static void test_dfs_recursive_matches_iterative(void)
     for (int i = 0; i < rec.order_len; i++) {
         CHECK(rec.order[i] == it.order[i]);
     }
-    /* disc/fin 的相对顺序性质：fin[u] > disc[u] 对每个已访问节点都成立 */
+    /* disc/fin 的相对顺序性质：fin[u] > disc[u]，但这只对**已访问**的节点成立。
+     * 没被访问到的节点 disc == fin == -1，此时 fin > disc 是假的，所以必须把两类
+     * 节点分开判断——否则换一张"有节点从 src 不可达"的图，这条断言就会无故失败。
+     * （本用例里 8 个节点都能从 0 到达，所以原来的写法一直没暴露出问题。） */
     for (int i = 0; i < g->n; i++) {
-        CHECK(rec.fin[i] > rec.disc[i]);
+        if (rec.disc[i] == -1) {
+            CHECK(rec.fin[i] == -1);         /* 未访问：两个时间戳都应该是 -1 */
+        } else {
+            CHECK(rec.fin[i] > rec.disc[i]); /* 已访问：完成时间必然晚于发现时间 */
+        }
     }
 
     dfs_free(&rec);
@@ -423,6 +432,7 @@ static void test_large_random_graph_bfs_dfs_consistency(void)
 
     /* 每个分量的大小之和必须等于 n，且每个节点只属于一个分量 */
     int *comp_size = calloc((size_t)comp_count, sizeof *comp_size);
+    if (comp_count > 0 && !comp_size) { perror("calloc"); exit(1); }
     for (int i = 0; i < n; i++) {
         CHECK(comp[i] >= 0 && comp[i] < comp_count);
         comp_size[comp[i]]++;

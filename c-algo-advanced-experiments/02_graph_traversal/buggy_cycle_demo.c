@@ -31,6 +31,7 @@ static bool buggy_visit(const Graph *g, bool *visited, int u)
 static bool buggy_has_cycle_undirected(const Graph *g)
 {
     bool *visited = calloc((size_t)g->n, sizeof *visited);
+    if (g->n > 0 && !visited) { perror("calloc"); exit(1); }
     bool found = false;
     for (int i = 0; i < g->n && !found; i++) {
         if (!visited[i] && buggy_visit(g, visited, i)) found = true;
@@ -68,10 +69,13 @@ int main(void)
     printf("加边 graph_add_edge(g, u, v) 对无向图会同时生成两条邻接表项：\n");
     printf("  u 的邻接表里加一条 u->v\n");
     printf("  v 的邻接表里加一条 v->u\n");
-    printf("DFS 从节点 1 走到节点 0（沿着 1->0 这条边）之后，\n");
-    printf("检查 0 的邻接表时，会看到「0->1」这一项——\n");
-    printf("这其实就是刚才走过来的那条边的另一半，不是新发现的环。\n");
-    printf("错误实现只要看到「已访问」就报环，等价于把每一条边都当成了环。\n");
+    printf("以用例 1（0-1-2）为例，DFS 从 0 出发，实际走的是 0 -> 1 -> 2。\n");
+    printf("走到 2 之后检查 2 的邻接表，会看到「2->1」这一项——\n");
+    printf("这其实就是刚才从 1 走过来那条边的另一半，不是新发现的环。\n");
+    printf("错误实现只要看到「已访问」就报环，于是在这里假报了一个环。\n");
+    printf("推广一下：只要图里存在任意一条边，DFS 往下走一层之后，\n");
+    printf("在最深处那个节点上必然会看到「已访问的父节点」，所以这个\n");
+    printf("错误实现对任何有边的图都会报环——它其实什么也没在检测。\n");
     printf("\n正确写法：记录 DFS 是从哪个父节点走过来的，\n");
     printf("遇到已访问节点时，只有当它不是父节点，才是真正的环。\n");
     printf("对比 algos.c 里的 has_cycle_undirected(const Graph *g)。\n");

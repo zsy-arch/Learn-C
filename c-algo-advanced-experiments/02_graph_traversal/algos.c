@@ -60,16 +60,21 @@ void bfs_free(BFSResult *r)
 int bfs_reconstruct_path(const BFSResult *r, int src, int dst, int *out)
 {
     if (r->dist[dst] == -1) return -1;
+    /* 沿 prev 回溯天然是"从 dst 往 src"的倒序，所以先直接倒着写进 out，
+     * 再原地反转。以前这里先写进一个固定大小的 int tmp[4096] 再拷进 out，
+     * 那么只要图的节点数超过 4096，最长路径就会把这个栈上数组写爆；
+     * 现在完全不需要临时缓冲区，out 由调用者按节点数分配即可。 */
     int len = 0;
-    int tmp[4096];
     int cur = dst;
     while (cur != src) {
-        tmp[len++] = cur;
+        out[len++] = cur;
         cur = r->prev[cur];
     }
-    tmp[len++] = src;
-    for (int i = 0; i < len; i++) {
-        out[i] = tmp[len - 1 - i];
+    out[len++] = src;
+    for (int lo = 0, hi = len - 1; lo < hi; lo++, hi--) {
+        int t = out[lo];
+        out[lo] = out[hi];
+        out[hi] = t;
     }
     return len;
 }
@@ -126,9 +131,12 @@ DFSResult dfs_recursive(const Graph *g, int src)
 
 /*
  * 迭代 DFS 的一个常见误区：如果只用"弹出即访问"，得到的顺序和递归版
- * 不一致（因为邻居入栈顺序和递归调用顺序相反）。这里为了让迭代版和
- * 递归版的 disc 顺序尽量一致，采用"显式帧 + 邻居下标"模拟调用栈，
- * 而不是简单的"访问节点时把所有邻居入栈"。
+ * 不一致（因为邻居入栈顺序和递归调用顺序相反）。这里采用"显式帧 + 邻居
+ * 下标"忠实模拟调用栈，而不是简单的"访问节点时把所有邻居入栈"。
+ *
+ * 注意：这样得到的不是"尽量接近"，而是和递归版**完全相同**的 order /
+ * disc / fin——两边都按 g->adj[u] 的链表顺序逐个处理邻居，每个节点也都
+ * 在"所有邻居处理完"的同一时刻记 fin，两者是同一个算法的两种写法。
  */
 typedef struct Frame {
     int      node;
